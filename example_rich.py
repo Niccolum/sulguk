@@ -198,6 +198,9 @@ def _cases() -> list[Case]:
           "<script>ignored()</script><style>p {}</style>"
           "<template>ignored</template><p>виден только этот абзац</p>",
           old=True),
+        c("containers", "head-stylesheet",
+          '<head><link rel="stylesheet" href="styles.css"></head>'
+          "<p>виден только этот абзац, head со стилями игнорируется</p>", old=True),
     ]
 
 
