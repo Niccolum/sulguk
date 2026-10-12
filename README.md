@@ -109,6 +109,62 @@ await bot.send_message(
 )
 ```
 
+## Rich messages (Bot API 10.1+)
+
+Telegram can render [rich messages](https://core.telegram.org/bots/api#rich-message-formatting-options):
+headings, lists, tables, media, collapsible blocks, footnotes, formulas.
+They are sent with `sendRichMessage` and parsed by Telegram itself, so no
+entities are produced. `InputRichMessage` holds exactly one of `html`,
+`markdown` or `blocks`. What `sulguk` does with each:
+
+| field      | `rich="html"`                      | `rich="blocks"`                      |
+|------------|------------------------------------|--------------------------------------|
+| `html`     | normalized to Telegram rich HTML   | converted to `blocks` (`html` unset) |
+| `markdown` | passed as is                       | passed as is                         |
+| `blocks`   | passed as is                       | passed as is                         |
+
+* `html` normalization collapses whitespace, drops unknown attributes,
+  applies `base_url`, maps non-Telegram tags (`div`, `span.tg-spoiler`, `cite`,
+  `kbd`, `q`, `progress`, ...) to supported ones and raises an error for
+  unknown tags.
+* `blocks` conversion builds `InputRichBlock*` structures, so the result does
+  not depend on how Telegram parses the HTML. Limits (500 blocks, 16 levels,
+  20 table columns, 32768 characters) are checked before sending. Besides
+  text blocks it supports media (`<img>`, `<video>`, `<audio>`,
+  `<tg-document>`; `.gif` video becomes an animation, `.ogg` audio a voice
+  note), `<figure>` with `<figcaption>`/`<cite>`, `<tg-collage>`,
+  `<tg-slideshow>`, `<tg-map>`, `<aside>`, `<tg-button-row>`, inline
+  `<tg-button>` and `<tg-thinking>` (accepted by Telegram only in
+  `sendRichMessageDraft`). Media must be a separate block and `src` is an
+  HTTP(S) URL or a file_id (`tg://` links work only in the html format).
+
+```python
+from sulguk import transform_rich_blocks, transform_rich_html
+
+html = transform_rich_html(raw_html, base_url="https://example.com").html
+blocks = transform_rich_blocks(raw_html, base_url="https://example.com").blocks
+```
+
+With aiogram (3.31+) choose the format in the middleware:
+
+```python
+from aiogram.types import InputRichMessage
+from sulguk import AiogramSulgukMiddleware
+
+bot.session.middleware(AiogramSulgukMiddleware(rich="html"))  # or "blocks"
+
+await bot.send_rich_message(
+    chat_id=CHAT_ID,
+    rich_message=InputRichMessage(html=raw_html),
+)
+```
+
+The format is applied in `sendRichMessage`, `sendRichMessageDraft`,
+`editMessageText` (with `rich_message`), `editEphemeralMessageText` and
+`InputRichMessageContent` of inline answers. Without `rich`
+nothing changes and old aiogram versions keep working; with `rich` set and an
+old aiogram an `ImportError` explains that `aiogram>=3.31` is required.
+
 ## Supported tags:
 
 For all supported tags unknown attributes are ignored as well as unknown classes.
@@ -147,7 +203,6 @@ The same behavior is supported in sulguk. Otherwise, you can set the language on
 * `<blockquote>` - a block quote. Like a paragraph with indentation
 * `<blockquote expandable>` - a block quote with expandable
 * `<h1>`-`<h6>` - text headers, styled using available telegram options
-* `<noscirpt>` - contents is shown as not scripting is supported
 * `<cite>`, `<var>` - italic
 * `<progress>`, `<meter>` are rendered using emoji (🟩🟩🟩🟨⬜️⬜️)
 * `<kbd>`, `<samp>` - preformatted text
@@ -163,7 +218,7 @@ The same behavior is supported in sulguk. Otherwise, you can set the language on
 
 #### Tags which contents is ignored:
 
-`<head>`, `<link>`, `<meta>`, `<script>`, `<style>`, `<template>`, `<title>`
+`<head>`, `<link>`, `<meta>`, `<noscript>`, `<script>`, `<style>`, `<template>`, `<title>`
 
 
 ## Command line utility for channel management

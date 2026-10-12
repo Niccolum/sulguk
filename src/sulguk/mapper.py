@@ -88,9 +88,12 @@ class Mapper:
 
         # special
         update_map(("meta", "link"), self._adapt_factory(lambda: None))
-        update_map(("html", "noscript", "body"), group_f)
+        update_map(("html", "body"), group_f)
         update_map(
-            ("head", "script", "style", "template", "title"),
+            (
+                "head", "script", "style", "template", "title",
+                "noscript",
+            ),
             self._adapt_factory(Stub),
         )
         # normal
@@ -188,10 +191,7 @@ class Mapper:
     def _get_ol(self, attrs: Attrs) -> EntityPair:
         inner = None
         start = self._find_attr("start", attrs)
-        if not start:
-            start = 1
-        else:
-            start = int(start)
+        start = int(start) if start else None
 
         is_reversed = self._find_attr("reversed", attrs, ...)
 

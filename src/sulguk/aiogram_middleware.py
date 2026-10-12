@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Type, TypeVar
+from typing import Any, Callable, Dict, Literal, Type, TypeVar
 
 from aiogram import Bot
 from aiogram.client.default import Default
@@ -11,6 +11,7 @@ from aiogram.methods import (
     AnswerInlineQuery,
     AnswerWebAppQuery,
     EditMessageMedia,
+    EditMessageText,
     Response,
     SendMediaGroup,
     SendPoll,
@@ -35,6 +36,7 @@ except ImportError:
         pass
 
 from sulguk.data import SULGUK_PARSE_MODE
+from .rich import transform_rich_blocks, transform_rich_html
 from .wrapper import transform_html
 
 logger = logging.getLogger(__name__)
@@ -42,9 +44,46 @@ logger = logging.getLogger(__name__)
 M = TypeVar("M", bound=TelegramMethod)
 Handler = Callable[[M, Bot], None]
 
+RichFormat = Literal["html", "blocks"]
+RICH_FORMATS = ("html", "blocks")
+RICH_MIN_AIOGRAM = "3.31"
+
+
+def _rich_methods() -> tuple:
+    """Rich message methods. Fails only when rich mode is requested."""
+    try:
+        from aiogram.methods import (
+            EditEphemeralMessageText,
+            SendRichMessage,
+            SendRichMessageDraft,
+        )
+    except ImportError as e:
+        raise ImportError(
+            "Rich messages are not supported by the installed aiogram, "
+            f"aiogram>={RICH_MIN_AIOGRAM} is required",
+        ) from e
+    return SendRichMessage, SendRichMessageDraft, EditEphemeralMessageText
+
 
 class AiogramSulgukMiddleware(BaseRequestMiddleware):
-    def __init__(self, base_url: str | None = None) -> None:
+    def __init__(
+            self,
+            base_url: str | None = None,
+            rich: RichFormat | None = None,
+    ) -> None:
+        """Create the middleware.
+
+        :param base_url: base for relative links
+        :param rich: how to process ``InputRichMessage`` built from HTML.
+            ``"html"`` normalizes the ``html`` field, ``"blocks"`` converts
+            it to the ``blocks`` field, ``None`` leaves rich messages alone.
+            ``markdown`` and ready ``blocks`` are always passed as is.
+        """
+        if rich is not None and rich not in RICH_FORMATS:
+            raise ValueError(
+                f"Unknown rich format: {rich!r}, "
+                f"expected one of {RICH_FORMATS} or None",
+            )
         self.handlers: Dict[Type[TelegramMethod], Handler] = {
             EditMessageMedia: self._process_edit_message_media,
             SendMediaGroup: self._process_send_media_group,
@@ -55,6 +94,11 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
             AnswerGuestQuery: self._process_answer_guest_query,
         }
         self._base_url = base_url
+        self._rich = rich
+        if rich is not None:
+            for method in _rich_methods():
+                self.handlers[method] = self._process_rich_method
+            self.handlers[EditMessageText] = self._process_edit_message_text
 
     async def __call__(
             self,
@@ -66,6 +110,43 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
         handler(method, bot)
         return await make_request(bot, method)
 
+    def _transform_rich_message(self, rich_message: Any) -> Any:
+        """Process the html of InputRichMessage, other fields stay as is.
+
+        InputRichMessage is frozen in aiogram, so a new one is returned.
+        """
+        if rich_message.html is None:
+            return rich_message
+
+        if self._rich == "blocks":
+            result = transform_rich_blocks(
+                rich_message.html, base_url=self._base_url,
+            )
+            fields = {**dict(rich_message), "html": None}
+            # a new model is validated, so blocks become InputRichBlock*
+            return type(rich_message)(**{**fields, "blocks": result.blocks})
+
+        result = transform_rich_html(
+            rich_message.html, base_url=self._base_url,
+        )
+        return rich_message.model_copy(update={"html": result.html})
+
+    def _process_rich_method(self, method: Any, bot: Bot) -> None:
+        if method.rich_message is not None:
+            method.rich_message = self._transform_rich_message(
+                method.rich_message,
+            )
+
+    def _process_edit_message_text(
+            self, method: EditMessageText, bot: Bot,
+    ) -> None:
+        if getattr(method, "rich_message", None) is not None:
+            method.rich_message = self._transform_rich_message(
+                method.rich_message,
+            )
+        else:
+            self._transform_text_caption(method, bot)
+
     def _process_inline_query_result(
             self, method: InlineQueryResult, bot: Bot,
     ) -> None:
@@ -73,6 +154,10 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
             target = method.input_message_content
         else:
             target = method
+        rich_message = getattr(target, "rich_message", None)
+        if self._rich is not None and rich_message is not None:
+            target.rich_message = self._transform_rich_message(rich_message)
+            return
         self._transform_text_caption(target, bot)
 
     def _process_answer_inline_query(
