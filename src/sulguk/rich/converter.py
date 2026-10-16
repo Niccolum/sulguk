@@ -16,7 +16,12 @@ class RichConverter:
         self._base_url = base_url
 
     def url(self, url: str) -> str:
-        """Make a relative url absolute, anchors are kept as is."""
+        """Make a relative url absolute, anchors are kept as is.
+
+        Unlike the old mode, which joins ``#name`` with ``base_url`` as a
+        browser does with ``<base>``, in a rich message such a link points
+        to an anchor of the message itself.
+        """
         if self._base_url is None or url.startswith("#"):
             return url
         return urllib.parse.urljoin(self._base_url, url)

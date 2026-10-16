@@ -129,7 +129,9 @@ entities are produced. `InputRichMessage` holds exactly one of `html`,
   unknown tags.
 * `blocks` conversion builds `InputRichBlock*` structures, so the result does
   not depend on how Telegram parses the HTML. Limits (500 blocks, 16 levels,
-  20 table columns, 32768 characters) are checked before sending. Besides
+  20 table columns, 50 media, 32768 characters) are checked before sending.
+  Characters are counted as code points, custom emoji alternative text and
+  formulas included, button text is not counted. Besides
   text blocks it supports media (`<img>`, `<video>`, `<audio>`,
   `<tg-document>`; `.gif` video becomes an animation, `.ogg` audio a voice
   note), `<figure>` with `<figcaption>`/`<cite>`, `<tg-collage>`,
@@ -137,6 +139,17 @@ entities are produced. `InputRichMessage` holds exactly one of `html`,
   `<tg-button>` and `<tg-thinking>` (accepted by Telegram only in
   `sendRichMessageDraft`). Media must be a separate block and `src` is an
   HTTP(S) URL or a file_id (`tg://` links work only in the html format).
+  A `src` made only of letters, digits, `_` and `-` is taken for a file_id,
+  so a relative `src="logo"` is not joined with `base_url`. For the same
+  reason `<a href="..."><img ...></a>` is an error: an image cannot be a part
+  of a link text, unlike in the html format.
+* Both modes agree on empty elements: an empty `<div>` is dropped and splits
+  the paragraphs around it, an empty `<ul>` is dropped, an empty `<li>` of
+  `<ol>` still takes a number, as in a browser. A list item with only a
+  checkbox is kept. `<br>` in `<pre>` is a line break and text after an HTML
+  comment is kept.
+* Limits are checked only in the `blocks` mode, the `html` mode leaves them to
+  Telegram.
 
 ```python
 from sulguk import transform_rich_blocks, transform_rich_html

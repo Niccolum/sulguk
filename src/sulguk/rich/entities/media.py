@@ -43,6 +43,9 @@ class MediaBlock(RichBlock):
     def text_length(self) -> int:
         return _caption_length(self.caption)
 
+    def media_count(self) -> int:
+        return 1
+
 
 @dataclass
 class MapBlock(RichBlock):

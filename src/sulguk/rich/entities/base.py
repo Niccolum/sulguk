@@ -78,3 +78,7 @@ class RichBlock(RichEntity):
     def text_length(self) -> int:
         """Characters of the text of the block and of nested blocks."""
         return 0
+
+    def media_count(self) -> int:
+        """Media attachments of the block itself, nested not included."""
+        return 0

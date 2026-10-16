@@ -1,10 +1,13 @@
 import re
 from typing import Any, Optional
 
-LANG_CLASS_PREFIX = "language-"
+from sulguk.data import LANG_CLASS_PREFIX  # noqa: F401
+
 ZERO_WIDTH_SPACE = "​"
 # carriage return, line feed, tab and space (not nbsp)
 SPACES = re.compile("[\x0d\x0a\x09\x20]+")
+# the same symbols for str.strip
+HTML_SPACES = "\x0d\x0a\x09\x20"
 # inputs which are pressed, they become buttons
 BUTTON_INPUT_TYPES = frozenset({"submit", "button", "reset"})
 

@@ -23,10 +23,12 @@ from .tags import (
     PLAIN_TAGS,
     RENAMED_TAGS,
     TAG_ATTRS,
+    VISIBLE_EMPTY_TAGS,
     VOID_TAGS,
 )
 from .utils import (
     BUTTON_INPUT_TYPES,
+    HTML_SPACES,
     LANG_CLASS_PREFIX,
     ZERO_WIDTH_SPACE,
     collapse_spaces,
@@ -45,6 +47,9 @@ class HtmlRenderer(RichConverter):
         # True at the start and after a block or a line break: spaces
         # there are not shown, so they are dropped
         self._at_boundary = True
+        # the last text written ends with a space, the next one must not
+        # start with another
+        self._ends_with_space = False
 
     def render(self, root: Element) -> str:
         self._visit(root, parent_tag=None, pre=False)
@@ -57,11 +62,12 @@ class HtmlRenderer(RichConverter):
             return
         if not pre:
             text = collapse_spaces(text)
-            if self._at_boundary or self._out[-1:] == [" "]:
+            if self._at_boundary or self._ends_with_space:
                 text = text.lstrip(" ")
             if not text:
                 return
         self._at_boundary = False
+        self._ends_with_space = not pre and text.endswith(" ")
         self._out.append(escape(text, quote=False))
 
     def _open(
@@ -115,14 +121,18 @@ class HtmlRenderer(RichConverter):
             self._visit_span(elem, pre)
         elif tag == "wbr":
             self._out.append(ZERO_WIDTH_SPACE)
+            self._ends_with_space = False
         elif tag == "q":
             self._out.append("“")
             self._at_boundary = False
+            self._ends_with_space = False
             self._children(elem, pre)
             self._out.append("”")
+            self._ends_with_space = False
         elif tag in ("progress", "meter"):
             self._out.append(escape(self.progress_text(elem), quote=False))
             self._at_boundary = False
+            self._ends_with_space = False
         elif tag == "pre":
             self._visit_pre(elem)
         elif tag == "input":
@@ -140,6 +150,14 @@ class HtmlRenderer(RichConverter):
         else:
             raise ValueError(f"Unsupported tag: {tag}")
 
+    def _is_blank(self, elem: Element) -> bool:
+        """Nothing is shown in the element: no text and no inline media."""
+        if "".join(elem.itertext()).strip(HTML_SPACES):
+            return False
+        return not any(
+            child.tag in VISIBLE_EMPTY_TAGS for child in elem.iterdescendants()
+        )
+
     def _is_text_container(self, elem: Optional[Element]) -> bool:
         """Container which becomes a paragraph made of its text only."""
         return (
@@ -148,9 +166,16 @@ class HtmlRenderer(RichConverter):
             and not any(
                 child.tag in HTML_BLOCK_TAGS for child in children(elem)
             )
+            and not self._is_blank(elem)
         )
 
     def _visit_container(self, elem: Element, pre: bool) -> None:
+        if elem.tag in CONTAINER_TAGS and self._is_blank(elem) and not any(
+            child.tag in HTML_BLOCK_TAGS for child in children(elem)
+        ):
+            # an empty container is skipped, it also separates its
+            # neighbours as in the ``blocks`` mode
+            return
         if not self._is_text_container(elem):
             self._children(elem, pre)
             return
@@ -175,10 +200,19 @@ class HtmlRenderer(RichConverter):
             self._children(elem, pre)
 
     def _visit_code(
-        self, elem: Element, parent_tag: Optional[str], pre: bool,
+        self,
+        elem: Element,
+        parent_tag: Optional[str],
+        pre: bool,
+        lang: Optional[str] = None,
     ) -> None:
+        """``lang`` is the language of the parent ``<pre>``, the language of
+        the ``<code>`` itself is preferred."""
         attrs = {}
-        lang = self.language(elem) if parent_tag == "pre" else None
+        if parent_tag == "pre":
+            lang = self.language(elem) or lang
+        else:
+            lang = None
         if lang:
             attrs["class"] = LANG_CLASS_PREFIX + lang
         self._wrap("code", attrs, elem, pre)
@@ -187,7 +221,7 @@ class HtmlRenderer(RichConverter):
         self._out.append("<pre>")
         code = self.single_code(elem)
         if code is not None:
-            self._visit_code(code, "pre", pre=True)
+            self._visit_code(code, "pre", pre=True, lang=self.language(elem))
         else:
             # the language of ``<pre>`` goes to a ``<code>`` made for it
             lang = self.language(elem)
@@ -246,7 +280,10 @@ class HtmlRenderer(RichConverter):
             # <tg-button> has many type-specific attributes, all are kept
             if tag != "tg-button" and key not in allowed:
                 continue
-            if key in ("href", "src") and value:
+            if key in ("href", "src"):
+                if not value:
+                    # an empty link is no link, as in the blocks mode
+                    continue
                 value = self.url(value)
             result[key] = value
         if tag == "ol" and "reversed" in result and "start" not in result:

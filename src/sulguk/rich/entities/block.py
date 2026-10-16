@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .base import RichBlock
 from .text import RichTextList
@@ -70,6 +70,3 @@ class MathBlock(RichBlock):
 class AnchorBlock(RichBlock):
     name: str
     type = "anchor"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"type": self.type, "name": self.name}

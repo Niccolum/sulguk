@@ -6,6 +6,7 @@ from sulguk.rich.entities import (
     Caption,
     DetailsBlock,
     FormattedText,
+    GalleryBlock,
     ListBlock,
     ListItemBlock,
     MathBlock,
@@ -19,6 +20,7 @@ from sulguk.rich.entities import (
 from sulguk.rich.limits import (
     MAX_BLOCKS,
     MAX_DEPTH,
+    MAX_MEDIA,
     MAX_TABLE_COLUMNS,
     MAX_TEXT_LENGTH,
     check_limits,
@@ -154,6 +156,26 @@ LONG = text("x" * 40000)
 def test_length_fields(block, name):
     with pytest.raises(ValueError, match="characters"):
         check_limits([block])
+
+
+def photo():
+    return MediaBlock("photo", "https://e.com/a.png")
+
+
+def test_media_edge_is_allowed():
+    check_limits([photo()] * MAX_MEDIA)
+
+
+def test_too_many_media():
+    with pytest.raises(ValueError, match="media attachments"):
+        check_limits([photo()] * (MAX_MEDIA + 1))
+
+
+def test_media_in_gallery_and_nested_blocks_are_counted():
+    gallery = GalleryBlock("collage", [photo()] * MAX_MEDIA)
+    check_limits([gallery])
+    with pytest.raises(ValueError, match="media attachments"):
+        check_limits([gallery, quote(photo())])
 
 
 def test_urls_and_names_are_not_text():

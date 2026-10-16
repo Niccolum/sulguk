@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from html5lib import HTMLParser, getTreeBuilder
+from lxml import etree
 
 from .data import MessageEntity
 from .render.state import State
@@ -27,7 +28,10 @@ def parse_html(raw_html: str, strict: bool = False):
         strict=strict,
         namespaceHTMLElements=False,
     )
-    return parser.parse(raw_html)
+    doc = parser.parse(raw_html)
+    # comments go away, the text after a comment (its tail) stays
+    etree.strip_tags(doc, etree.Comment)
+    return doc
 
 
 def transform_html(

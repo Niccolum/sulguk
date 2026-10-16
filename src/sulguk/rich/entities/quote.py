@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from .base import RichBlock
 from .text import RichTextList
@@ -52,9 +52,6 @@ class DetailsBlock(RichBlock):
     blocks: List[RichBlock] = field(default_factory=list)
     is_open: bool = False
     type = "details"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"type": self.type, **self._fields()}
 
     def nested(self) -> List[Tuple[int, List[RichBlock]]]:
         return [(1, self.blocks)]

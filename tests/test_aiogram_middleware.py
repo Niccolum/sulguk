@@ -18,7 +18,7 @@ from aiogram.types import (
     InputRichMessageContent,
 )
 
-from sulguk import AiogramSulgukMiddleware
+from sulguk import AiogramSulgukMiddleware, SULGUK_PARSE_MODE
 
 BASE = "https://e.com/"
 MARKDOWN = InputRichMessage(markdown="# <div>x")
@@ -129,3 +129,47 @@ def test_rich_requires_new_aiogram(monkeypatch, rich):
 
     with pytest.raises(ImportError, match="aiogram>=3.31"):
         AiogramSulgukMiddleware(rich=rich)
+
+
+def process_sulguk_default(method, **kwargs):
+    """Bot with ``parse_mode=sulguk`` by default, as in real projects."""
+    async def make_request(bot, method):
+        return method
+
+    middleware = AiogramSulgukMiddleware(base_url=BASE, **kwargs)
+    bot = SimpleNamespace(
+        default=SimpleNamespace(parse_mode=SULGUK_PARSE_MODE),
+    )
+    asyncio.run(middleware(make_request, bot, method))
+    return method
+
+
+@pytest.mark.parametrize("rich", [None, "html", "blocks"])
+def test_edit_rich_message_keeps_no_text_and_parse_mode(rich):
+    method = process_sulguk_default(
+        edit(InputRichMessage(html="<p>hi</p>")), rich=rich,
+    )
+
+    assert method.text is None
+    assert method.entities is None
+    assert method.parse_mode is None
+
+
+def test_edit_rich_message_untouched_without_rich():
+    source = InputRichMessage(html="<div>a</div>")
+
+    method = process_sulguk_default(edit(source), rich=None)
+
+    assert method.rich_message == source
+
+
+def test_edit_text_still_uses_entities():
+    method = EditMessageText(
+        chat_id=1, message_id=2, text="<b>x</b>",
+    )
+
+    process_sulguk_default(method, rich="html")
+
+    assert method.text == "x"
+    assert method.entities[0]["type"] == "bold"
+    assert method.parse_mode is None

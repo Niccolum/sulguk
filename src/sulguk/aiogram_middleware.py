@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Literal, Type, TypeVar
+from typing import Any, Callable, Dict, Literal, Type, TypeVar, get_args
 
 from aiogram import Bot
 from aiogram.client.default import Default
@@ -45,7 +45,7 @@ M = TypeVar("M", bound=TelegramMethod)
 Handler = Callable[[M, Bot], None]
 
 RichFormat = Literal["html", "blocks"]
-RICH_FORMATS = ("html", "blocks")
+RICH_FORMATS = get_args(RichFormat)
 RICH_MIN_AIOGRAM = "3.31"
 
 
@@ -92,13 +92,15 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
             SendPoll: self._process_send_poll,
             SendMessageDraft: self._process_send_message_draft,
             AnswerGuestQuery: self._process_answer_guest_query,
+            # always registered: rich_message must not get a text from
+            # the default parse mode even when rich processing is off
+            EditMessageText: self._process_edit_message_text,
         }
         self._base_url = base_url
         self._rich = rich
         if rich is not None:
             for method in _rich_methods():
                 self.handlers[method] = self._process_rich_method
-            self.handlers[EditMessageText] = self._process_edit_message_text
 
     async def __call__(
             self,
@@ -140,12 +142,17 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
     def _process_edit_message_text(
             self, method: EditMessageText, bot: Bot,
     ) -> None:
-        if getattr(method, "rich_message", None) is not None:
-            method.rich_message = self._transform_rich_message(
-                method.rich_message,
-            )
-        else:
+        # getattr: old aiogram has no rich_message in EditMessageText
+        rich_message = getattr(method, "rich_message", None)
+        if rich_message is None:
             self._transform_text_caption(method, bot)
+            return
+        # rich_message replaces the text, so Telegram must not get
+        # the sulguk parse mode together with it
+        if self._is_parse_mode_supported(method, bot):
+            method.parse_mode = None
+        if self._rich is not None:
+            method.rich_message = self._transform_rich_message(rich_message)
 
     def _process_inline_query_result(
             self, method: InlineQueryResult, bot: Bot,

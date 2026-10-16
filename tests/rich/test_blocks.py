@@ -68,6 +68,16 @@ def one_button(html):
         ),
         ("<pre>\n a</pre>", [{"type": "pre", "text": " a"}], "pre lf"),
         (
+            "<pre>line1<br>line2</pre>",
+            [{"type": "pre", "text": "line1\nline2"}],
+            "pre br",
+        ),
+        (
+            "<pre><code>a<br>b</code> <b>c</b></pre>",
+            [{"type": "pre", "text": "a\nb c"}],
+            "pre br in nested tags",
+        ),
+        (
             "<blockquote>q<cite>A</cite></blockquote>",
             [{"type": "blockquote", "blocks": [para("q")], "credit": "A"}],
             "blockquote credit",
@@ -120,6 +130,11 @@ def one_button(html):
             "<time>t</time></p>",
             [para("o d t")],
             "transparent",
+        ),
+        (
+            "<p>a<!-- c -->b</p>",
+            [para("ab")],
+            "text after a comment",
         ),
     ],
 )
@@ -289,6 +304,18 @@ def item(*blocks, **extra):
             ],
             "ordered type has values",
         ),
+        (
+            '<ul><li><input type="checkbox" checked></li></ul>',
+            [
+                {
+                    "type": "list",
+                    "items": [item(has_checkbox=True, is_checked=True)],
+                }
+            ],
+            "checkbox only item",
+        ),
+        ("<ul></ul>", [], "empty ul"),
+        ("<ol><li></li></ol>", [], "empty ol item"),
     ],
 )
 def test_lists(html, expected, name):
@@ -398,6 +425,11 @@ def test_button_types(html, key, expected, name):
         ("<foo>x</foo>", "Unsupported tag", "unknown tag"),
         (f"<p>text {IMG} more</p>", "separate block", "inline media"),
         ("<img>", "requires the src", "no src"),
+        (
+            '<ol><li value="x">a</li></ol>',
+            "must be an integer",
+            "li value",
+        ),
         ('<img src="tg://photo?id=a">', "tg:// links", "tg link"),
         (
             "<blockquote expandable><ul><li>x</li></ul></blockquote>",
@@ -559,6 +591,12 @@ def test_input_button(html, expected, name):
             "<div>a</div><section><p>s</p></section><div>b</div>",
             [para("a"), para("s"), para("b")],
             "container with block splits",
+        ),
+        ("<div> </div>", [], "blank"),
+        (
+            "<div>a</div><div></div><div>b</div>",
+            [para("a"), para("b")],
+            "empty container separates",
         ),
         # media is a block here, unlike in the html mode
         (

@@ -31,7 +31,7 @@ from lxml.etree import Element
 
 from sulguk.wrapper import parse_html
 from .converter import RichConverter
-from .dom import children, first_child, plain_text
+from .dom import children, first_child, plain_text, pre_text
 from .entities import (
     Anchor,
     AnchorBlock,
@@ -533,7 +533,7 @@ class BlocksConverter(RichConverter):
         lang = self.language(elem)
         if lang is None and code is not None:
             lang = self.language(code)
-        text = plain_text(elem)
+        text = pre_text(elem)
         if text.startswith("\n"):
             text = text[1:]
         return [PreBlock(text, lang or None)]
@@ -577,17 +577,22 @@ class BlocksConverter(RichConverter):
     # ---- lists
 
     def _block_ul(self, elem: Element) -> List[RichBlock]:
-        return [self._list(elem, ordered=False)]
+        block = self._list(elem, ordered=False)
+        return [block] if block.items else []
 
     def _block_ol(self, elem: Element) -> List[RichBlock]:
-        return [self._list(elem, ordered=True)]
+        block = self._list(elem, ordered=True)
+        return [block] if block.items else []
 
     def _list(self, elem: Element, ordered: bool) -> ListBlock:
         li_elems = [c for c in children(elem) if c.tag == "li"]
         items = [self._list_item(li) for li in li_elems]
         if ordered:
             self._number_items(elem, li_elems, items)
-        return ListBlock([item for item in items if item.blocks])
+        # an item with only a checkbox is not empty
+        return ListBlock(
+            [item for item in items if item.blocks or item.has_checkbox],
+        )
 
     def _list_item(self, li: Element) -> ListItemBlock:
         checkbox = self.leading_checkbox(li)
@@ -621,7 +626,12 @@ class BlocksConverter(RichConverter):
 
         for li, item in zip(li_elems, items, strict=True):
             if li.get("value"):
-                counter = int(li.get("value"))
+                try:
+                    counter = int(li.get("value"))
+                except ValueError as e:
+                    raise ValueError(
+                        f"<li value={li.get('value')!r}> must be an integer",
+                    ) from e
             item.value = counter
             numbering = li.get("type") or attrs.get("type")
             item.numbering = numbering if numbering in OL_TYPES else "1"

@@ -112,6 +112,11 @@ HTML_BLOCK_TAGS = CONTAINER_TAGS | HEADING_TAGS | {
     "tg-math-block", "tg-button-row",
 }
 
+# tags which are shown even without any text inside
+VISIBLE_EMPTY_TAGS = frozenset(
+    {"img", "input", "br", "wbr", "tg-emoji", "progress", "meter", "tg-map"},
+)
+
 # tags which are written as another tag
 RENAMED_TAGS = {"kbd": "code", "samp": "code", "var": "i", "tt": "i"}
 # ``<cite>`` is kept only as an author of these, otherwise it is italic

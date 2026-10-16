@@ -2,6 +2,7 @@ import urllib.parse
 from functools import cached_property, partial
 from typing import Any, Callable, List, Optional, ParamSpec, Tuple
 
+from .data import LANG_CLASS_PREFIX
 from .entities import (
     Blockquote,
     Bold,
@@ -41,8 +42,6 @@ OL_FORMAT = {
     "i": NumberFormat.ROMAN_LOWER,
     "I": NumberFormat.ROMAN_UPPER,
 }
-
-LANG_CLASS_PREFIX = "language-"
 
 
 class Mapper:

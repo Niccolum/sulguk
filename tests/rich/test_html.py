@@ -53,6 +53,22 @@ def conv(html, **kwargs):
             '<pre><code class="language-go">a</code></pre>',
             "pre nested code",
         ),
+        (
+            '<pre class="language-py"><code>x = 1</code></pre>',
+            '<pre><code class="language-py">x = 1</code></pre>',
+            "pre language with plain code",
+        ),
+        (
+            '<pre class="language-py"><code class="language-go">x</code>'
+            "</pre>",
+            '<pre><code class="language-go">x</code></pre>',
+            "code language is preferred",
+        ),
+        (
+            "<p>a<!-- c -->b</p>",
+            "<p>ab</p>",
+            "text after a comment",
+        ),
         ("<pre>a\n  b</pre>", "<pre>a\n  b</pre>", "pre whitespace"),
         (
             '<code class="language-go">a</code>',
@@ -126,6 +142,12 @@ def conv(html, **kwargs):
             "space after progress",
         ),
         ("<p><q> x</q></p>", "<p>“ x”</p>", "space in quote"),
+        (
+            "<p><b>hello </b> world</p>",
+            "<p><b>hello </b>world</p>",
+            "no double space after a tag",
+        ),
+        ('<a href="">x</a>', "x", "empty href is no link"),
         (
             '<p><progress value="5" max="10"></progress></p>',
             "<p>🟦🟦🟦🟦🟦🟩⬜⬜⬜⬜</p>",
@@ -209,6 +231,12 @@ def test_unsupported_tag_raises():
             "<div>a</div><section><p>s</p></section><div>b</div>",
             "<p>a</p><p>s</p><p>b</p>",
             "container with block splits",
+        ),
+        ("<div> </div>", "", "blank"),
+        (
+            "<div>a</div><div></div><div>b</div>",
+            "<p>a</p><p>b</p>",
+            "empty container separates",
         ),
         (
             '<div><img src="https://e.com/a.png"></div>',
