@@ -11,6 +11,7 @@ from typing import Optional
 
 from lxml.etree import Element
 
+from sulguk.data import LANG_CLASS_PREFIX
 from sulguk.wrapper import parse_html
 from .converter import RichConverter
 from .dom import children
@@ -26,12 +27,11 @@ from .tags import (
     VISIBLE_EMPTY_TAGS,
     VOID_TAGS,
 )
-from .utils import (
-    BUTTON_INPUT_TYPES,
-    HTML_SPACES,
-    LANG_CLASS_PREFIX,
+from .html_parsing import (
+    BUTTON_LIKE_INPUT_TYPES,
+    HTML_SPACE_CHARS,
     ZERO_WIDTH_SPACE,
-    collapse_spaces,
+    collapse_html_spaces,
 )
 
 
@@ -61,7 +61,7 @@ class HtmlRenderer(RichConverter):
         if not text:
             return
         if not pre:
-            text = collapse_spaces(text)
+            text = collapse_html_spaces(text)
             if self._at_boundary or self._ends_with_space:
                 text = text.lstrip(" ")
             if not text:
@@ -152,7 +152,7 @@ class HtmlRenderer(RichConverter):
 
     def _is_blank(self, elem: Element) -> bool:
         """Nothing is shown in the element: no text and no inline media."""
-        if "".join(elem.itertext()).strip(HTML_SPACES):
+        if "".join(elem.itertext()).strip(HTML_SPACE_CHARS):
             return False
         return not any(
             child.tag in VISIBLE_EMPTY_TAGS for child in elem.iterdescendants()
@@ -243,7 +243,7 @@ class HtmlRenderer(RichConverter):
             and self.leading_checkbox(parent) is elem
         ):
             self._visit_passed("input", elem, pre)
-        elif elem.get("type") in BUTTON_INPUT_TYPES:
+        elif elem.get("type") in BUTTON_LIKE_INPUT_TYPES:
             label, attrs = self.input_button(elem)
             self._open("tg-button", attrs)
             self._text(label, pre=True)

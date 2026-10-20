@@ -6,7 +6,7 @@ from lxml.etree import Element
 from sulguk.entities import Progress
 from sulguk.render import State
 from .dom import children
-from .utils import LANG_CLASS_PREFIX
+from sulguk.data import LANG_CLASS_PREFIX
 
 
 class RichConverter:

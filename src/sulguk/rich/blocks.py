@@ -75,7 +75,6 @@ from .entities import (
     UrlAction,
     WebAppAction,
 )
-from .limits import check_limits
 from .tags import (
     BLOCK_CONTAINERS,
     CONTAINER_TAGS,
@@ -88,11 +87,11 @@ from .tags import (
     TABLE_SECTIONS,
     TRANSPARENT_TAGS,
 )
-from .utils import (
-    BUTTON_INPUT_TYPES,
+from .html_parsing import (
+    BUTTON_LIKE_INPUT_TYPES,
     ZERO_WIDTH_SPACE,
-    collapse_spaces,
-    to_int,
+    collapse_html_spaces,
+    parse_int_attr,
 )
 
 BUTTON_ALIGNS = ("left", "center", "right")
@@ -255,7 +254,7 @@ class BlocksConverter(RichConverter):
     # ---- inline: every method returns a list of items
 
     def _text(self, text: Optional[str]) -> Items:
-        return [Text(collapse_spaces(text))] if text else []
+        return [Text(collapse_html_spaces(text))] if text else []
 
     def _wrap(self, type_: str, inner: Items, **extra: Any) -> Items:
         """Inline item with formatting, nothing if there is nothing to
@@ -378,7 +377,7 @@ class BlocksConverter(RichConverter):
         return self._wrap("reference", inner, name=name)
 
     def _inline_input(self, elem: Element) -> Items:
-        if elem.get("type") in BUTTON_INPUT_TYPES:
+        if elem.get("type") in BUTTON_LIKE_INPUT_TYPES:
             label, attrs = self.input_button(elem)
             text = RichTextList([Text(label)])
             return [ButtonText(self._make_button(attrs, text))]
@@ -617,7 +616,7 @@ class BlocksConverter(RichConverter):
         """
         attrs = ol.attrib
         reverse = "reversed" in attrs
-        start = to_int(attrs.get("start"))
+        start = parse_int_attr(attrs.get("start"))
         if start is not None:
             counter = start
         else:
@@ -671,8 +670,8 @@ class BlocksConverter(RichConverter):
             valign=cell.get("valign", "middle"),
             text=non_empty(self.rich(cell)),
             is_header=cell.tag == "th",
-            colspan=to_int(cell.get("colspan")),
-            rowspan=to_int(cell.get("rowspan")),
+            colspan=parse_int_attr(cell.get("colspan")),
+            rowspan=parse_int_attr(cell.get("rowspan")),
         )
 
     # ---- media
@@ -780,9 +779,9 @@ class BlocksConverter(RichConverter):
         return MapBlock(
             latitude=latitude,
             longitude=longitude,
-            zoom=to_int(elem.get("zoom")),
-            width=to_int(elem.get("width")),
-            height=to_int(elem.get("height")),
+            zoom=parse_int_attr(elem.get("zoom")),
+            width=parse_int_attr(elem.get("width")),
+            height=parse_int_attr(elem.get("height")),
             caption=self._caption(figcaption),
         )
 
@@ -820,5 +819,4 @@ def transform_rich_blocks(
         return RichBlocksResult(blocks=[])
     doc = parse_html(raw_html, strict=strict)
     blocks = BlocksConverter(base_url).blocks(doc.getroot())
-    check_limits(blocks)
     return RichBlocksResult(blocks=[block.to_dict() for block in blocks])

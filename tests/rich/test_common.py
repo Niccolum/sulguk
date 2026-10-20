@@ -3,7 +3,7 @@ from lxml.html import fragment_fromstring
 
 from sulguk.rich.converter import RichConverter
 from sulguk.rich.dom import children
-from sulguk.rich.utils import compact
+from sulguk.rich.html_parsing import drop_none_fields
 
 
 def elem(html):
@@ -26,7 +26,7 @@ def test_children_of_empty():
 
 
 def test_compact():
-    assert compact(a=1, b=None, c=0, d="", e=False) == {
+    assert drop_none_fields(a=1, b=None, c=0, d="", e=False) == {
         "a": 1,
         "c": 0,
         "d": "",
