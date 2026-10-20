@@ -117,7 +117,7 @@ They are sent with `sendRichMessage` and parsed by Telegram itself, so no
 entities are produced. `InputRichMessage` holds exactly one of `html`,
 `markdown` or `blocks`. What `sulguk` does with each:
 
-| field      | `rich="html"`                      | `rich="blocks"`                      |
+| field      | `format="html"`                    | `format="blocks"`                    |
 |------------|------------------------------------|--------------------------------------|
 | `html`     | normalized to Telegram rich HTML   | converted to `blocks` (`html` unset) |
 | `markdown` | passed as is                       | passed as is                         |
@@ -158,25 +158,42 @@ html = transform_rich_html(raw_html, base_url="https://example.com").html
 blocks = transform_rich_blocks(raw_html, base_url="https://example.com").blocks
 ```
 
-With aiogram (3.31+) choose the format in the middleware:
+With aiogram (3.31+) mark the messages that `sulguk` must process with
+`SulgukRichMessage`, like `parse_mode="sulguk"` does for a text:
 
 ```python
 from aiogram.types import InputRichMessage
-from sulguk import AiogramSulgukMiddleware
+from sulguk import AiogramSulgukMiddleware, SulgukRichMessage
 
-bot.session.middleware(AiogramSulgukMiddleware(rich="html"))  # or "blocks"
+bot.session.middleware(AiogramSulgukMiddleware())
 
+# processed, the format is "html" by default
+await bot.send_rich_message(
+    chat_id=CHAT_ID,
+    rich_message=SulgukRichMessage(html=raw_html),
+)
+# processed with the "blocks" format
+await bot.send_rich_message(
+    chat_id=CHAT_ID,
+    rich_message=SulgukRichMessage(html=raw_html, format="blocks"),
+)
+# not marked: sent to Telegram as is
 await bot.send_rich_message(
     chat_id=CHAT_ID,
     rich_message=InputRichMessage(html=raw_html),
 )
 ```
 
-The format is applied in `sendRichMessage`, `sendRichMessageDraft`,
+`SulgukRichMessage` is an `InputRichMessage` with the extra `format` field
+(`"html"` or `"blocks"`), it is never sent to Telegram. If `format` is not set,
+`AiogramSulgukMiddleware(rich="blocks")` gives the default, otherwise it is
+`"html"`.
+
+Marked messages are processed in `sendRichMessage`, `sendRichMessageDraft`,
 `editMessageText` (with `rich_message`), `editEphemeralMessageText` and
-`InputRichMessageContent` of inline answers. Without `rich`
-nothing changes and old aiogram versions keep working; with `rich` set and an
-old aiogram an `ImportError` explains that `aiogram>=3.31` is required.
+`InputRichMessageContent` of inline answers. Old aiogram versions keep working;
+with `rich` set and an old aiogram an `ImportError` explains that
+`aiogram>=3.31` is required.
 
 ## Supported tags:
 

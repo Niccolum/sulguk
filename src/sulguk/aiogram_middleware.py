@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Literal, Type, TypeVar, get_args
+from typing import Any, Callable, Dict, Type, TypeVar
 
 from aiogram import Bot
 from aiogram.client.default import Default
@@ -35,7 +35,17 @@ except ImportError:
     class SendMessageDraft(TelegramMethod):
         pass
 
-from sulguk.data import SULGUK_PARSE_MODE
+try:
+    from aiogram.types import InputRichMessage
+
+    from .rich.message import SulgukRichMessage
+except ImportError:  # aiogram without rich messages
+    class SulgukRichMessage:  # type: ignore[no-redef]
+        pass
+
+    InputRichMessage = None  # type: ignore[assignment,misc]
+
+from sulguk.data import RICH_FORMATS, SULGUK_PARSE_MODE, RichFormat
 from .rich import transform_rich_blocks, transform_rich_html
 from .wrapper import transform_html
 
@@ -44,13 +54,14 @@ logger = logging.getLogger(__name__)
 M = TypeVar("M", bound=TelegramMethod)
 Handler = Callable[[M, Bot], None]
 
-RichFormat = Literal["html", "blocks"]
-RICH_FORMATS = get_args(RichFormat)
 RICH_MIN_AIOGRAM = "3.31"
 
 
-def _rich_methods() -> tuple:
-    """Rich message methods. Fails only when rich mode is requested."""
+def _rich_methods(required: bool) -> tuple:
+    """Rich message methods.
+
+    Without the support in aiogram fails only if ``required``.
+    """
     try:
         from aiogram.methods import (
             EditEphemeralMessageText,
@@ -58,6 +69,8 @@ def _rich_methods() -> tuple:
             SendRichMessageDraft,
         )
     except ImportError as e:
+        if not required:
+            return ()
         raise ImportError(
             "Rich messages are not supported by the installed aiogram, "
             f"aiogram>={RICH_MIN_AIOGRAM} is required",
@@ -74,10 +87,11 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
         """Create the middleware.
 
         :param base_url: base for relative links
-        :param rich: how to process ``InputRichMessage`` built from HTML.
-            ``"html"`` normalizes the ``html`` field, ``"blocks"`` converts
-            it to the ``blocks`` field, ``None`` leaves rich messages alone.
-            ``markdown`` and ready ``blocks`` are always passed as is.
+        :param rich: default format of ``SulgukRichMessage``: ``"html"``
+            normalizes the ``html`` field, ``"blocks"`` converts it to
+            the ``blocks`` field. ``None`` means ``"html"``. Plain
+            ``InputRichMessage`` is always passed as is, ``markdown`` and
+            ready ``blocks`` are never changed.
         """
         if rich is not None and rich not in RICH_FORMATS:
             raise ValueError(
@@ -93,14 +107,13 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
             SendMessageDraft: self._process_send_message_draft,
             AnswerGuestQuery: self._process_answer_guest_query,
             # always registered: rich_message must not get a text from
-            # the default parse mode even when rich processing is off
+            # the default parse mode
             EditMessageText: self._process_edit_message_text,
         }
         self._base_url = base_url
         self._rich = rich
-        if rich is not None:
-            for method in _rich_methods():
-                self.handlers[method] = self._process_rich_method
+        for method in _rich_methods(required=rich is not None):
+            self.handlers[method] = self._process_rich_method
 
     async def __call__(
             self,
@@ -113,25 +126,34 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
         return await make_request(bot, method)
 
     def _transform_rich_message(self, rich_message: Any) -> Any:
-        """Process the html of InputRichMessage, other fields stay as is.
+        """Process the html of SulgukRichMessage, other fields stay as is.
 
-        InputRichMessage is frozen in aiogram, so a new one is returned.
+        A plain InputRichMessage is returned untouched. The result is
+        a plain InputRichMessage (InputRichMessage is frozen in aiogram,
+        so a new one is built), the sulguk-only ``format`` is dropped.
         """
-        if rich_message.html is None:
+        if not isinstance(rich_message, SulgukRichMessage):
             return rich_message
+        if rich_message.html is None:
+            return InputRichMessage(
+                **rich_message.model_dump(exclude={"format"}),
+            )
 
-        if self._rich == "blocks":
+        fmt = rich_message.format or self._rich or "html"
+        fields = rich_message.model_dump(exclude={"format"})
+        if fmt == "blocks":
             result = transform_rich_blocks(
                 rich_message.html, base_url=self._base_url,
             )
-            fields = {**dict(rich_message), "html": None}
             # a new model is validated, so blocks become InputRichBlock*
-            return type(rich_message)(**{**fields, "blocks": result.blocks})
+            return InputRichMessage(
+                **{**fields, "html": None, "blocks": result.blocks},
+            )
 
         result = transform_rich_html(
             rich_message.html, base_url=self._base_url,
         )
-        return rich_message.model_copy(update={"html": result.html})
+        return InputRichMessage(**{**fields, "html": result.html})
 
     def _process_rich_method(self, method: Any, bot: Bot) -> None:
         if method.rich_message is not None:
@@ -151,8 +173,7 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
         # the sulguk parse mode together with it
         if self._is_parse_mode_supported(method, bot):
             method.parse_mode = None
-        if self._rich is not None:
-            method.rich_message = self._transform_rich_message(rich_message)
+        method.rich_message = self._transform_rich_message(rich_message)
 
     def _process_inline_query_result(
             self, method: InlineQueryResult, bot: Bot,
@@ -162,7 +183,7 @@ class AiogramSulgukMiddleware(BaseRequestMiddleware):
         else:
             target = method
         rich_message = getattr(target, "rich_message", None)
-        if self._rich is not None and rich_message is not None:
+        if rich_message is not None:
             target.rich_message = self._transform_rich_message(rich_message)
             return
         self._transform_text_caption(target, bot)

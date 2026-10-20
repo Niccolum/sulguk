@@ -23,3 +23,10 @@ try:
     __all__.append("AiogramSulgukMiddleware")
 except ImportError:
     pass
+
+try:
+    from .rich.message import SulgukRichMessage  # noqa: F401
+
+    __all__.append("SulgukRichMessage")
+except ImportError:
+    pass

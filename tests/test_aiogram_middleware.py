@@ -18,7 +18,11 @@ from aiogram.types import (
     InputRichMessageContent,
 )
 
-from sulguk import AiogramSulgukMiddleware, SULGUK_PARSE_MODE
+from sulguk import (
+    AiogramSulgukMiddleware,
+    SULGUK_PARSE_MODE,
+    SulgukRichMessage,
+)
 
 BASE = "https://e.com/"
 MARKDOWN = InputRichMessage(markdown="# <div>x")
@@ -63,13 +67,13 @@ def rich_message_of(method):
     [
         pytest.param(
             None,
-            InputRichMessage(html="<div>a</div>"),
-            InputRichMessage(html="<div>a</div>"),
-            id="disabled",
+            SulgukRichMessage(html="<div>a</div>"),
+            InputRichMessage(html="<p>a</p>"),
+            id="default-is-html",
         ),
         pytest.param(
             "html",
-            InputRichMessage(
+            SulgukRichMessage(
                 html='<div class="x"><a href="/a">l</a>\n\n  <b>b</b></div>',
             ),
             InputRichMessage(
@@ -79,7 +83,7 @@ def rich_message_of(method):
         ),
         pytest.param(
             "blocks",
-            InputRichMessage(html="<h2>T</h2><p>a</p>"),
+            SulgukRichMessage(html="<h2>T</h2><p>a</p>"),
             InputRichMessage(
                 blocks=[
                     {"type": "heading", "text": "T", "size": 2},
@@ -88,24 +92,59 @@ def rich_message_of(method):
             ),
             id="blocks",
         ),
+        pytest.param(
+            "html",
+            SulgukRichMessage(html="<h2>T</h2>", format="blocks"),
+            InputRichMessage(
+                blocks=[{"type": "heading", "text": "T", "size": 2}],
+            ),
+            id="message-format-wins",
+        ),
     ],
 )
 def test_html_field(rich, source, expected):
     method = process(send(source), rich=rich)
     assert method.rich_message == expected
+    # a plain model without the sulguk-only field goes to Telegram
+    assert type(method.rich_message) is InputRichMessage
+    assert "format" not in method.rich_message.model_dump()
+
+
+@pytest.mark.parametrize("rich", [None, "html", "blocks"])
+def test_plain_rich_message_is_untouched(rich):
+    source = InputRichMessage(html="<div>a</div>")
+
+    assert process(send(source), rich=rich).rich_message == source
 
 
 @pytest.mark.parametrize("rich", [None, "html", "blocks"])
 @pytest.mark.parametrize("rich_message", [MARKDOWN, BLOCKS])
 def test_other_fields_are_untouched(rich, rich_message):
-    assert process(send(rich_message), rich=rich).rich_message == rich_message
+    marked = SulgukRichMessage(**rich_message.model_dump())
+
+    assert process(send(marked), rich=rich).rich_message == rich_message
+
+
+def test_format_is_not_sent():
+    message = SulgukRichMessage(html="<p>a</p>", format="blocks")
+
+    assert "format" not in message.model_dump()
 
 
 @pytest.mark.parametrize("build", [send, edit, inline])
 def test_rich_message_is_processed_in_every_method(build):
-    method = process(build(InputRichMessage(html="<div>a</div>")), rich="html")
+    method = process(build(SulgukRichMessage(html="<div>a</div>")), rich="html")
 
     assert rich_message_of(method).html == "<p>a</p>"
+
+
+@pytest.mark.parametrize("build", [send, edit, inline])
+def test_plain_rich_message_is_untouched_in_every_method(build):
+    source = InputRichMessage(html="<div>a</div>")
+
+    method = process(build(source), rich="html")
+
+    assert rich_message_of(method) == source
 
 
 def test_plain_message_still_uses_entities():
@@ -155,7 +194,7 @@ def test_edit_rich_message_keeps_no_text_and_parse_mode(rich):
     assert method.parse_mode is None
 
 
-def test_edit_rich_message_untouched_without_rich():
+def test_edit_rich_message_untouched_without_marker():
     source = InputRichMessage(html="<div>a</div>")
 
     method = process_sulguk_default(edit(source), rich=None)
