@@ -57,85 +57,84 @@ class Case:
 
 
 def _cases() -> list[Case]:
-    c = Case
     return [
         # ---- text
-        c("text", "headings",
+        Case("text", "headings",
           "<h1>h1</h1><h2>h2</h2><h3>h3</h3><h4>h4</h4><h5>h5</h5>"
           "<h6>h6</h6>", old=True),
-        c("text", "formatting",
+        Case("text", "formatting",
           "<p><b>b</b> <strong>strong</strong> <i>i</i> <em>em</em> "
           "<cite>cite</cite> <var>var</var> <tt>tt</tt> <u>u</u> "
           "<ins>ins</ins> <s>s</s> <strike>strike</strike> <del>del</del> "
           "<mark>mark</mark> <kbd>kbd</kbd> "
           "<samp>samp</samp> <code>code</code></p>", old=True),
-        c("text", "sub-sup", "<p>H<sub>2</sub>O x<sup>2</sup></p>"),
-        c("text", "spoiler-quote-break",
+        Case("text", "sub-sup", "<p>H<sub>2</sub>O x<sup>2</sup></p>"),
+        Case("text", "spoiler-quote-break",
           '<p><tg-spoiler>tg-spoiler</tg-spoiler> <span class="tg-spoiler">'
           "span</span> <q>q</q> строка<br>перенос, невидимый<wbr>перенос"
           "</p>", old=True),
-        c("text", "links",
+        Case("text", "links",
           '<p><a href="https://example.com">url</a>, '
           '<a href="tg://user?id=CHAT_ID">упоминание</a>, '
           "<a>a без href</a></p>", old=True),
         # the old mode turns any href into a url entity, and Telegram rejects
         # "#top" and "tel:", so this case has no old mode
-        c("text", "links-special",
+        Case("text", "links-special",
           '<p><a name="top"></a><a href="#top">якорь</a>, '
           '<a href="mailto:a@example.com">mailto</a>, '
           '<a href="tel:+10000000000">tel</a></p>'),
-        c("text", "time-reference-math",
+        Case("text", "time-reference-math",
           '<p><tg-time unix="1767225600">1 января 2026</tg-time>'
           ' <tg-reference name="ref1">сноска</tg-reference> '
           "<tg-math>E=mc^2</tg-math></p>"),
-        c("text", "math-block",
+        Case("text", "math-block",
           "<tg-math-block>\\int_0^1 x\\,dx = \\frac12</tg-math-block>"),
-        c("text", "emoji",
+        Case("text", "emoji",
           f'<p>Эмодзи: <tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji></p>'),
-        c("text", "hr-footer", "<p>до</p><hr><p>после</p><footer>footer"
+        Case("text", "hr-footer", "<p>до</p><hr><p>после</p><footer>footer"
           "</footer>", old=True),
-        c("text", "progress-meter",
+        Case("text", "progress-meter",
           '<p><progress value="3" max="10"></progress> '
           '<meter min="0" max="5" value="4"></meter></p>', old=True),
         # ---- lists
-        c("lists", "unordered",
+        Case("lists", "unordered",
           "<ul><li>один</li><li>два<ul><li>вложенный</li></ul></li></ul>",
           old=True),
-        c("lists", "ordered-start-value",
+        Case("lists", "ordered-start-value",
           '<ol start="3"><li>три</li><li value="10">десять</li>'
           "<li>одиннадцать</li></ol>", old=True),
-        c("lists", "ordered-reversed",
+        Case("lists", "ordered-reversed",
           "<ol reversed><li>c</li><li>b</li><li>a</li></ol>", old=True),
-        c("lists", "ordered-type",
+        Case("lists", "ordered-type",
           '<ol type="a"><li>a</li><li>b</li></ol>'
           '<ol type="I"><li>I</li><li>II</li></ol>', old=True),
-        c("lists", "checkboxes",
+        Case("lists", "checkboxes",
           '<ul><li><input type="checkbox" checked> сделано</li>'
           '<li><input type="checkbox"> не сделано</li></ul>', old=True),
         # ---- inputs
-        c("inputs", "inputs-in-text",
+        Case("inputs", "inputs-in-text",
           '<p><input type="checkbox" checked> <input type="checkbox"> '
           '<input type="radio" checked> <input type="radio"> '
           '<input value="значение"> <input></p>', old=True),
-        c("inputs", "submit-is-button",
+        Case("inputs", "submit-is-button",
           '<p><input type="submit"> <input type="button" name="go" '
           'value="Go"> <input type="reset"></p>'),
         # ---- quotes and blocks
-        c("quotes", "blockquote",
+        Case("quotes", "blockquote",
           "<blockquote>blockquote<cite>автор</cite></blockquote>", old=True),
-        c("quotes", "expandable",
+        Case("quotes", "expandable",
           "<blockquote expandable>expandable<br>строка 2<br>строка 3<br>"
           "строка 4<br>строка 5</blockquote>", old=True),
-        c("quotes", "pullquote", "<aside>pull quote<cite>автор</cite></aside>"),
-        c("quotes", "details",
+        Case("quotes", "pullquote", "<aside>pull quote<cite>автор</cite></aside>"),
+        Case("quotes", "details",
           "<details open><summary>details open</summary><p>скрытый текст"
           "</p></details>", old=True),
-        c("quotes", "pre",
+        Case("quotes", "pre",
           '<pre>pre без языка</pre><pre class="language-python">'
           'print("pre с языком")</pre><pre><code class="language-js">'
           'console.log("pre > code")</code></pre>', old=True),
         # ---- table
-        c("table", "table",
+        Case("table", "table",
           '<table><caption>table caption</caption>'
           '<thead><tr><th>h1</th><th align="center">h2</th></tr></thead>'
           '<tbody><tr><td colspan="2" align="right">colspan</td></tr>'
@@ -143,30 +142,30 @@ def _cases() -> list[Case]:
           "<tr><td>c</td></tr></tbody>"
           "<tfoot><tr><td>tfoot</td><td>x</td></tr></tfoot></table>"),
         # ---- media
-        c("media", "photo", f'<img src="{IMG}">', old=True),
-        c("media", "video", f'<video src="{VIDEO}"></video>'),
-        c("media", "animation", f'<video src="{GIF}"></video>'),
-        c("media", "audio", f'<audio src="{AUDIO}"></audio>'),
-        c("media", "document",
+        Case("media", "photo", f'<img src="{IMG}">', old=True),
+        Case("media", "video", f'<video src="{VIDEO}"></video>'),
+        Case("media", "animation", f'<video src="{GIF}"></video>'),
+        Case("media", "audio", f'<audio src="{AUDIO}"></audio>'),
+        Case("media", "document",
           f'<tg-document src="{DOCUMENT}"></tg-document>'),
-        c("media", "figure",
+        Case("media", "figure",
           f'<figure><img src="{IMG}" tg-spoiler><figcaption>figure caption'
           "<cite>credit</cite></figcaption></figure>"),
-        c("media", "map", '<tg-map lat="55.7558" long="37.6173" zoom="10"/>'),
-        c("media", "figure-map",
+        Case("media", "map", '<tg-map lat="55.7558" long="37.6173" zoom="10"/>'),
+        Case("media", "figure-map",
           '<figure><tg-map lat="48.8566" long="2.3522" zoom="10"/>'
           "<figcaption>map caption</figcaption></figure>"),
-        c("media", "collage",
+        Case("media", "collage",
           f'<tg-collage><img src="{IMG}"><img src="{IMG}">'
           "<figcaption>collage</figcaption></tg-collage>"),
-        c("media", "slideshow",
+        Case("media", "slideshow",
           f'<tg-slideshow><img src="{IMG}"><img src="{IMG}">'
           "<figcaption>slideshow</figcaption></tg-slideshow>"),
         # ---- buttons
-        c("buttons", "inline-button",
+        Case("buttons", "inline-button",
           '<p>Кнопка в тексте: <tg-button type="url" '
           'url="https://example.com">url</tg-button></p>'),
-        c("buttons", "styles",
+        Case("buttons", "styles",
           '<tg-button-row align="center">'
           '<tg-button type="url" style="primary" url="https://example.com">'
           "primary</tg-button>"
@@ -176,7 +175,7 @@ def _cases() -> list[Case]:
           "danger</tg-button>"
           '<tg-button type="url" style="link" url="https://example.com">'
           "link</tg-button></tg-button-row>"),
-        c("buttons", "actions",
+        Case("buttons", "actions",
           '<tg-button-row>'
           '<tg-button type="copy_text" text="скопировано">copy_text'
           "</tg-button>"
@@ -188,17 +187,17 @@ def _cases() -> list[Case]:
           "allow-user-chats allow-bot-chats>chosen</tg-button>"
           '<tg-button type="disabled">disabled</tg-button></tg-button-row>'),
         # ---- containers
-        c("containers", "containers",
+        Case("containers", "containers",
           "<div>div</div><section><p>section</p></section><main>main</main>"
           "<nav>nav</nav><header>header</header>", old=True),
-        c("containers", "transparent",
+        Case("containers", "transparent",
           '<p><noscript>noscript</noscript> <output>output</output> '
           '<data value="1">data</data> <time>time</time></p>', old=True),
-        c("containers", "ignored",
+        Case("containers", "ignored",
           "<script>ignored()</script><style>p {}</style>"
           "<template>ignored</template><p>виден только этот абзац</p>",
           old=True),
-        c("containers", "head-stylesheet",
+        Case("containers", "head-stylesheet",
           '<head><link rel="stylesheet" href="styles.css"></head>'
           "<p>виден только этот абзац, head со стилями игнорируется</p>", old=True),
     ]
