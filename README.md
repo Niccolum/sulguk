@@ -148,8 +148,10 @@ entities are produced. `InputRichMessage` holds exactly one of `html`,
   `<ol>` still takes a number, as in a browser. A list item with only a
   checkbox is kept. `<br>` in `<pre>` is a line break and text after an HTML
   comment is kept.
-* Limits are checked only in the `blocks` mode, the `html` mode leaves them to
-  Telegram.
+* A table cell holds only a text, and Telegram glues the items of a list in
+  it together. So `<ul>` and `<ol>` in `<td>`/`<th>` are written as lines in
+  both modes, as the old mode writes lists: `• ` or `1. ` (`start`, `reversed`,
+  `type` and `value` are kept), a nested list is indented.
 
 ```python
 from sulguk import transform_rich_blocks, transform_rich_html
