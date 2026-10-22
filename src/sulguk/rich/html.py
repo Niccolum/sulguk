@@ -135,6 +135,8 @@ class HtmlRenderer(RichConverter):
             self._ends_with_space = False
         elif tag == "pre":
             self._visit_pre(elem)
+        elif tag in ("ul", "ol") and self.flat_list_depth(elem) is not None:
+            self._visit_flat_list(elem, pre)
         elif tag == "input":
             self._visit_input(elem, pre)
         elif tag == "code":
@@ -233,6 +235,30 @@ class HtmlRenderer(RichConverter):
                 self._out.append("</code>")
         self._out.append("</pre>")
 
+    def _visit_flat_list(self, elem: Element, pre: bool) -> None:
+        """A list in a table cell is written as lines, the same text as the
+        ``blocks`` mode makes: Telegram glues the items of such a list."""
+        marks = self.list_marks(elem)
+        if not marks:
+            return
+        indent = "\xa0" * (self.flat_list_depth(elem) or 0)
+        if self.has_content_before(elem):
+            self._line_break()
+        for index, (li, mark) in enumerate(marks):
+            if index:
+                self._line_break()
+            self._text(indent + mark, pre=True)
+            # the item text must not start with a second space
+            self._ends_with_space = True
+            self._children(li, pre)
+        if self.has_content_after(elem):
+            self._line_break()
+
+    def _line_break(self) -> None:
+        self._out.append("<br>")
+        self._at_boundary = True
+        self._ends_with_space = False
+
     def _visit_input(self, elem: Element, pre: bool) -> None:
         """Telegram shows only the checkbox of a list item, as ``blocks``
         does everything else is text or a button."""
@@ -241,6 +267,7 @@ class HtmlRenderer(RichConverter):
             parent is not None
             and parent.tag == "li"
             and self.leading_checkbox(parent) is elem
+            and self.flat_list_depth(parent.getparent()) is None
         ):
             self._visit_passed("input", elem, pre)
         elif elem.get("type") in BUTTON_LIKE_INPUT_TYPES:

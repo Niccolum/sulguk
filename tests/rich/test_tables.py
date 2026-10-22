@@ -84,6 +84,44 @@ def table(*rows, **extra):
             table([cell(text="a")]),
             "no caption by default",
         ),
+        (
+            "<table><tr><td><ul><li>a</li><li>b</li></ul></td></tr></table>",
+            table([cell(text="• a\n• b")]),
+            "list in a cell",
+        ),
+        (
+            '<table><tr><td><ol start="3"><li>a</li><li value="10">b</li>'
+            "<li>c</li></ol></td></tr></table>",
+            table([cell(text="3. a\n10. b\n11. c")]),
+            "ordered list in a cell",
+        ),
+        (
+            '<table><tr><td><ol type="i" reversed><li>a</li><li>b</li></ol>'
+            "</td></tr></table>",
+            table([cell(text="ii. a\ni. b")]),
+            "ordered list type and reversed",
+        ),
+        (
+            "<table><tr><td>x<ul><li>a</li></ul>y</td></tr></table>",
+            table([cell(text="x\n• a\ny")]),
+            "text around a list in a cell",
+        ),
+        (
+            "<table><tr><td><ul><li>a<ul><li>b</li></ul></li></ul></td></tr>"
+            "</table>",
+            table([cell(text="• a\n\xa0• b")]),
+            "nested list in a cell",
+        ),
+        (
+            "<table><tr><td><ul><li><b>a</b> b</li></ul></td></tr></table>",
+            table([cell(text=["• ", {"type": "bold", "text": "a"}, " b"])]),
+            "formatting in a list item of a cell",
+        ),
+        (
+            "<table><tr><td><ul></ul></td></tr></table>",
+            table([cell()]),
+            "empty list in a cell",
+        ),
     ],
 )
 def test_table(html, expected, name):

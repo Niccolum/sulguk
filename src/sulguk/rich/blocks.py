@@ -297,6 +297,8 @@ class BlocksConverter(RichConverter):
             )
         if tag in FORMAT_TAGS:
             return self._wrap(FORMAT_TAGS[tag], self._inline_children(elem))
+        if tag in ("ul", "ol") and self.flat_list_depth(elem) is not None:
+            return self._inline_list(elem)
 
         handler = self._inline_handlers.get(tag)
         if handler is not None:
@@ -313,6 +315,25 @@ class BlocksConverter(RichConverter):
 
     def _inline_br(self, elem: Element) -> Items:
         return [Text("\n")]
+
+    def _inline_list(self, elem: Element) -> Items:
+        """A list in a table cell: a line for every item, with a mark and an
+        indent of a nested list, like the old mode writes it."""
+        marks = self.list_marks(elem)
+        if not marks:
+            return []
+        indent = "\xa0" * (self.flat_list_depth(elem) or 0)
+        items: Items = []
+        if self.has_content_before(elem):
+            items.append(Text("\n"))
+        for index, (li, mark) in enumerate(marks):
+            if index:
+                items.append(Text("\n"))
+            items.append(Text(indent + mark))
+            items.extend(self._inline_children(li))
+        if self.has_content_after(elem):
+            items.append(Text("\n"))
+        return items
 
     def _inline_wbr(self, elem: Element) -> Items:
         return [Text(ZERO_WIDTH_SPACE)]

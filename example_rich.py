@@ -141,6 +141,15 @@ def _cases() -> list[Case]:
           '<tr><td rowspan="2" valign="top">rowspan</td><td>b</td></tr>'
           "<tr><td>c</td></tr></tbody>"
           "<tfoot><tr><td>tfoot</td><td>x</td></tr></tfoot></table>"),
+        # a cell holds a text only and Telegram glues the items of a list in
+        # it, so sulguk writes such a list as lines with marks, in both modes
+        Case("table", "table-with-list",
+          "<table><caption>Покупки</caption>"
+          "<thead><tr><th>Раздел</th><th>Список</th></tr></thead>"
+          "<tbody>"
+          "<tr><td>Фрукты</td><td><ul><li>яблоко</li><li>груша</li></ul></td></tr>"
+          "<tr><td>Шаги</td><td><ol><li>купить</li><li>помыть</li></ol></td></tr>"
+          "</tbody></table>"),
         # ---- media
         Case("media", "photo", f'<img src="{IMG}">', old=True),
         Case("media", "video", f'<video src="{VIDEO}"></video>'),

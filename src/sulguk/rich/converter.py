@@ -1,12 +1,15 @@
 import urllib.parse
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from lxml.etree import Element
 
+from sulguk.data import LANG_CLASS_PREFIX, NumberFormat
 from sulguk.entities import Progress
+from sulguk.mapper import OL_FORMAT
 from sulguk.render import State
+from sulguk.render.numbers import int_to_number
 from .dom import children
-from sulguk.data import LANG_CLASS_PREFIX
+from .html_parsing import parse_int_attr
 
 
 class RichConverter:
@@ -60,6 +63,52 @@ class RichConverter:
         ):
             return kids[0]
         return None
+
+    def flat_list_depth(self, lst: Element) -> Optional[int]:
+        """Nesting of a list in a table cell, ``None`` outside of a cell.
+
+        A cell holds only a text, so Telegram glues the items of a list in
+        it together. Such a list is written as lines, see ``list_marks``.
+        """
+        depth = 0
+        for parent in lst.iterancestors():
+            if parent.tag in ("td", "th"):
+                return depth
+            if parent.tag in ("ul", "ol"):
+                depth += 1
+        return None
+
+    def has_content_before(self, elem: Element) -> bool:
+        parent = elem.getparent()
+        return elem.getprevious() is not None or bool(
+            parent is not None and (parent.text or "").strip(),
+        )
+
+    def has_content_after(self, elem: Element) -> bool:
+        return elem.getnext() is not None or bool((elem.tail or "").strip())
+
+    def list_marks(self, lst: Element) -> List[Tuple[Element, str]]:
+        """Items of ``<ul>``/``<ol>`` with their marks: ``• `` or ``1. ``,
+        numbered as in the old mode."""
+        items = [c for c in children(lst) if c.tag == "li"]
+        if lst.tag == "ul":
+            return [(li, "• ") for li in items]
+        reverse = "reversed" in lst.attrib
+        counter = parse_int_attr(lst.get("start"))
+        if counter is None:
+            counter = len(items) if reverse else 1
+        step = -1 if reverse else 1
+        result = []
+        for li in items:
+            if li.get("value"):
+                counter = int(li.get("value"))
+            number_format = OL_FORMAT.get(
+                li.get("type") or lst.get("type") or "1",
+                NumberFormat.DECIMAL,
+            )
+            result.append((li, f"{int_to_number(counter, number_format)}. "))
+            counter += step
+        return result
 
     def input_symbol(self, elem: Element) -> Optional[str]:
         """Emoji of a checkbox or a radio, ``None`` for other inputs."""
