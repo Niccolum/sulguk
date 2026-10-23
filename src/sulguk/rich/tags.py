@@ -62,6 +62,20 @@ MEDIA_KINDS = {
 }
 OL_TYPES = frozenset({"1", "a", "A", "i", "I"})
 TABLE_SECTIONS = frozenset({"thead", "tbody", "tfoot"})
+# A table in a text-only element is written as its cells, see the inline
+# converters
+TABLE_INLINE_TAGS = frozenset({"table", "tr", "td", "th", "caption"})
+# Elements which hold only a text, a block inside them cannot be expressed
+# and is written as text: a list as lines with marks, a table as its cells.
+TEXT_ONLY_PARENTS = frozenset(
+    {"td", "th", "summary", "caption", "figcaption"},
+)
+# A quotation there is a separate line which starts with this bar
+QUOTE_MARK = "▎ "
+# Telegram does not draw a divider inside of a quote, so there it is this
+# line of text. A footer always needs a divider before it, and gets the
+# text one where it cannot be a block.
+RULE = "─" * 10
 
 # ---- html
 
@@ -111,6 +125,11 @@ HTML_BLOCK_TAGS = CONTAINER_TAGS | HEADING_TAGS | {
     "table", "pre", "figure", "hr", "tg-collage", "tg-slideshow", "tg-map",
     "tg-math-block", "tg-button-row",
 }
+
+# Blocks which the ``blocks`` mode drops when there is nothing in them
+EMPTY_BLOCK_TAGS = frozenset(
+    {"blockquote", "ul", "ol", "li", "p", "footer"},
+) | HEADING_TAGS
 
 # tags which are shown even without any text inside
 VISIBLE_EMPTY_TAGS = frozenset(

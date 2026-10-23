@@ -83,7 +83,10 @@ from .tags import (
     HEADING_TAGS,
     MEDIA_KINDS,
     OL_TYPES,
+    QUOTE_MARK,
+    RULE,
     SEPARATE_BLOCKS,
+    TABLE_INLINE_TAGS,
     TABLE_SECTIONS,
     TRANSPARENT_TAGS,
 )
@@ -299,6 +302,12 @@ class BlocksConverter(RichConverter):
             return self._wrap(FORMAT_TAGS[tag], self._inline_children(elem))
         if tag in ("ul", "ol") and self.flat_list_depth(elem) is not None:
             return self._inline_list(elem)
+        if tag in TABLE_SECTIONS or tag in TABLE_INLINE_TAGS:
+            return self._inline_table(elem)
+        if tag == "blockquote" and self.inside_text_only(elem):
+            return self._inline_quote(elem)
+        if tag == "pre" and self.inside_text_only(elem):
+            return self._inline_pre(elem)
 
         handler = self._inline_handlers.get(tag)
         if handler is not None:
@@ -333,6 +342,48 @@ class BlocksConverter(RichConverter):
             items.extend(self._inline_children(li))
         if self.has_content_after(elem):
             items.append(Text("\n"))
+        return items
+
+    def _inline_quote(self, elem: Element) -> Items:
+        """A quotation in a text-only element: Telegram cannot nest a block
+        there, so it is a separate line with a bar, not glued to the text
+        around it."""
+        items: Items = []
+        if self.has_content_before(elem):
+            items.append(Text("\n"))
+        items.append(Text(QUOTE_MARK))
+        items.extend(self._inline_children(elem))
+        if self.has_content_after(elem):
+            items.append(Text("\n"))
+        return items
+
+    def _inline_pre(self, elem: Element) -> Items:
+        """``<pre>`` in a text-only element: its text with the line breaks
+        and spaces kept, on lines of its own."""
+        text = pre_text(elem)
+        if text.startswith("\n"):
+            text = text[1:]
+        items: Items = []
+        if self.has_content_before(elem):
+            items.append(Text("\n"))
+        if text.strip():
+            items.append(Text(text))
+        if self.has_content_after(elem):
+            items.append(Text("\n"))
+        return items
+
+    def _inline_table(self, elem: Element) -> Items:
+        """A table in a text-only element: its cells as text, cells of a
+        row separated by a space, rows by a line break."""
+        tag = str(elem.tag)
+        if tag in ("td", "th", "caption"):
+            return self._inline_children(elem)
+        separator = " " if tag == "tr" else "\n"
+        items: Items = []
+        for index, child in enumerate(children(elem)):
+            if index:
+                items.append(Text(separator))
+            items.extend(self._inline(child))
         return items
 
     def _inline_wbr(self, elem: Element) -> Items:
@@ -500,6 +551,13 @@ class BlocksConverter(RichConverter):
             elif tag in self._block_handlers:
                 run.flush()
                 new = self._block_handlers[tag](child)
+                if (
+                    tag == "footer"
+                    and new
+                    and not self.has_divider_before(child)
+                ):
+                    # a footer is always preceded by a divider
+                    run.add_blocks([self._divider(child)], False)
                 run.add_blocks(new, self._is_text_container(child, new))
             else:
                 run.add(self._inline(child))
@@ -543,7 +601,13 @@ class BlocksConverter(RichConverter):
         return [block(text)]
 
     def _block_hr(self, elem: Element) -> List[RichBlock]:
-        return [DividerBlock()]
+        return [self._divider(elem)]
+
+    def _divider(self, elem: Element) -> RichBlock:
+        """A divider, as a line of text where Telegram cannot draw one."""
+        if self.inside_quote(elem):
+            return ParagraphBlock(RichTextList([Text(RULE)]))
+        return DividerBlock()
 
     def _block_tg_math_block(self, elem: Element) -> List[RichBlock]:
         return [MathBlock(plain_text(elem))]
@@ -562,6 +626,9 @@ class BlocksConverter(RichConverter):
         cite = first_child(elem, "cite")
         content = self.blocks(elem, skip=cite)
         credit = non_empty(self.rich(cite))
+        if not content and credit is None:
+            # Telegram refuses a message with an empty block
+            return []
 
         if "expandable" not in elem.attrib:
             return [BlockquoteBlock(content, credit)]
@@ -662,15 +729,10 @@ class BlocksConverter(RichConverter):
     def _block_table(self, elem: Element) -> List[RichBlock]:
         """``<table>``, rows of ``<thead>``, ``<tbody>``, ``<tfoot>``
         included."""
-        rows: List[Element] = []
+        rows = self.table_rows(elem)
         caption = None
         for child in children(elem):
-            tag = str(child.tag)
-            if tag == "tr":
-                rows.append(child)
-            elif tag in TABLE_SECTIONS:
-                rows.extend(r for r in children(child) if r.tag == "tr")
-            elif tag == "caption":
+            if child.tag == "caption":
                 caption = non_empty(self.rich(child))
 
         cells = [

@@ -10,6 +10,7 @@ from sulguk.render import State
 from sulguk.render.numbers import int_to_number
 from .dom import children
 from .html_parsing import parse_int_attr
+from .tags import TABLE_SECTIONS, TEXT_ONLY_PARENTS
 
 
 class RichConverter:
@@ -65,18 +66,50 @@ class RichConverter:
         return None
 
     def flat_list_depth(self, lst: Element) -> Optional[int]:
-        """Nesting of a list in a table cell, ``None`` outside of a cell.
+        """Nesting of a list in a text-only element, ``None`` elsewhere.
 
-        A cell holds only a text, so Telegram glues the items of a list in
-        it together. Such a list is written as lines, see ``list_marks``.
+        Such an element holds only a text, so Telegram glues the items of
+        a list in it together. The list is written as lines, see
+        ``list_marks``.
         """
         depth = 0
         for parent in lst.iterancestors():
-            if parent.tag in ("td", "th"):
+            if parent.tag in TEXT_ONLY_PARENTS:
                 return depth
             if parent.tag in ("ul", "ol"):
                 depth += 1
         return None
+
+    def inside_text_only(self, elem: Element) -> bool:
+        """The element is inside a place which holds only a text."""
+        return any(
+            parent.tag in TEXT_ONLY_PARENTS for parent in elem.iterancestors()
+        )
+
+    def inside_quote(self, elem: Element) -> bool:
+        """The element is inside of a block quotation, where Telegram does
+        not draw a divider."""
+        return any(
+            parent.tag == "blockquote" for parent in elem.iterancestors()
+        )
+
+    def has_divider_before(self, elem: Element) -> bool:
+        """A divider is already right before the element: an ``<hr>`` or a
+        previous ``<footer>``, which takes the only one."""
+        prev = elem.getprevious()
+        return prev is not None and prev.tag in ("hr", "footer")
+
+    def table_rows(self, table: Element) -> List[Element]:
+        """``<tr>`` of a table, rows of ``<thead>``, ``<tbody>`` and
+        ``<tfoot>`` included."""
+        rows: List[Element] = []
+        for child in children(table):
+            tag = str(child.tag)
+            if tag == "tr":
+                rows.append(child)
+            elif tag in TABLE_SECTIONS:
+                rows.extend(r for r in children(child) if r.tag == "tr")
+        return rows
 
     def has_content_before(self, elem: Element) -> bool:
         parent = elem.getparent()

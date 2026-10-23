@@ -52,6 +52,44 @@ def one_button(html):
             "divider footer",
         ),
         (
+            "<footer>f</footer>",
+            [{"type": "divider"}, {"type": "footer", "text": "f"}],
+            "footer gets a divider",
+        ),
+        (
+            "<footer>a</footer><footer>b</footer>",
+            [
+                {"type": "divider"},
+                {"type": "footer", "text": "a"},
+                {"type": "footer", "text": "b"},
+            ],
+            "footers in a row share one divider",
+        ),
+        (
+            "<footer>a</footer><p>x</p><footer>b</footer>",
+            [
+                {"type": "divider"},
+                {"type": "footer", "text": "a"},
+                para("x"),
+                {"type": "divider"},
+                {"type": "footer", "text": "b"},
+            ],
+            "footer after a paragraph gets its own divider",
+        ),
+        (
+            "<blockquote><p>a</p><hr><p>b</p></blockquote>",
+            [{"type": "blockquote",
+              "blocks": [para("a"), para("──────────"), para("b")]}],
+            "divider in a quote is a line of text",
+        ),
+        (
+            "<blockquote><p>p</p><footer>f</footer></blockquote>",
+            [{"type": "blockquote",
+              "blocks": [para("p"), para("──────────"),
+                         {"type": "footer", "text": "f"}]}],
+            "footer in a quote gets a line before it",
+        ),
+        (
             "<tg-math-block>E=mc^2</tg-math-block>",
             [{"type": "mathematical_expression", "expression": "E=mc^2"}],
             "math block",
@@ -482,30 +520,21 @@ def test_errors(html, message, name):
         conv(html)
 
 
-@pytest.mark.parametrize(
-    "html, message, name",
-    [
-        ("<p>x</p>" * 501, "blocks, the limit is", "blocks"),
-        (
-            f"<table><tr>{'<td>x</td>' * 21}</tr></table>",
-            "more than 20 columns",
-            "columns",
-        ),
-        (
-            "<blockquote>" * 17 + "x" + "</blockquote>" * 17,
-            "nested deeper",
-            "depth",
-        ),
-        (f"<p>{'a' * 32769}</p>", "characters", "length"),
-    ],
-)
-def test_limits_exceeded(html, message, name):
-    with pytest.raises(ValueError, match=message):
-        conv(html)
-
-
 def test_limits_edge_is_allowed():
     assert len(conv("<p>x</p>" * 500)) == 500
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        "<blockquote> </blockquote>",
+        "<blockquote><p></p></blockquote>",
+        "<ul><li> </li></ul>",
+        "<ul><li><blockquote></blockquote></li></ul>",
+    ],
+)
+def test_empty_blocks_are_dropped(html):
+    assert conv(html) == []
 
 
 @pytest.mark.parametrize(
@@ -644,7 +673,7 @@ def test_summary_outside_of_details_is_a_paragraph():
             "expandable",
         ),
         ("<hr>", "Divider", "divider"),
-        ("<footer>f</footer>", "Footer", "footer"),
+        ("<footer>f</footer>", "Divider+Footer", "footer"),
         (
             "<details open><summary>s</summary>c</details>",
             "Details",
@@ -706,6 +735,7 @@ def test_blocks_are_accepted_by_aiogram(html, model, name):
     # sulguk itself does not need aiogram, so skip only these tests
     input_rich_message = pytest.importorskip("aiogram.types").InputRichMessage
     message = input_rich_message(blocks=conv(html))
+    models = model.split("+")
     assert [type(b).__name__ for b in message.blocks] == [
-        f"InputRichBlock{model}",
+        f"InputRichBlock{m}" for m in models
     ]

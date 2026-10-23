@@ -249,5 +249,89 @@ def test_container(html, expected, name):
     assert conv(html) == expected
 
 
+@pytest.mark.parametrize(
+    "html, expected, name",
+    [
+        (
+            "<table><tr><td>до<blockquote>цитата</blockquote>после</td>"
+            "</tr></table>",
+            "<table><tbody><tr><td>до<br>▎ цитата<br>после</td></tr>"
+            "</tbody></table>",
+            "quote in a cell is a line of its own",
+        ),
+        (
+            "<details><summary>s<blockquote>q</blockquote></summary>"
+            "<p>x</p></details>",
+            "<details><summary>s<br>▎ q</summary><p>x</p></details>",
+            "quote in a summary",
+        ),
+        (
+            "<table><tr><td><pre>строка 1\nстрока 2</pre></td></tr></table>",
+            "<table><tbody><tr><td>строка 1<br>строка 2</td></tr>"
+            "</tbody></table>",
+            "pre in a cell keeps its line breaks",
+        ),
+        ("<blockquote> </blockquote><p>a</p>", "<p>a</p>", "empty quote"),
+        ("<ul><li> </li></ul><p>a</p>", "<p>a</p>", "list of empty items"),
+        ("<ul><li></li><li>a</li></ul>", "<ul><li>a</li></ul>", "empty item"),
+        (
+            "<ul><li><blockquote></blockquote></li></ul>",
+            "",
+            "empty quote in an item",
+        ),
+        (
+            "<blockquote><p></p></blockquote>",
+            "",
+            "quote of an empty paragraph",
+        ),
+        (
+            "<blockquote><cite>a</cite></blockquote>",
+            "<blockquote><cite>a</cite></blockquote>",
+            "quote with a credit only",
+        ),
+        (
+            "<blockquote><hr></blockquote>",
+            "<blockquote><p>──────────</p></blockquote>",
+            "quote with a divider",
+        ),
+        ("<footer>f</footer>", "<hr><footer>f</footer>", "footer divider"),
+        (
+            "<hr><footer>a</footer><footer>b</footer>",
+            "<hr><footer>a</footer><footer>b</footer>",
+            "footers share one divider",
+        ),
+        (
+            "<blockquote><p>p</p><footer>f</footer></blockquote>",
+            "<blockquote><p>p</p><p>──────────</p><footer>f</footer>"
+            "</blockquote>",
+            "footer in a quote",
+        ),
+    ],
+)
+def test_empty_blocks(html, expected, name):
+    assert conv(html) == expected
+
+
+@pytest.mark.parametrize(
+    "html, expected, name",
+    [
+        (
+            "<details><summary>s<ul><li>a</li><li>b</li></ul></summary>"
+            "<p>x</p></details>",
+            "<details><summary>s<br>• a<br>• b</summary><p>x</p></details>",
+            "list in a summary",
+        ),
+        (
+            "<table><tr><td><table><tr><td>a</td><td>b</td></tr>"
+            "<tr><td>c</td></tr></table></td></tr></table>",
+            "<table><tbody><tr><td>a b<br>c</td></tr></tbody></table>",
+            "table in a cell",
+        ),
+    ],
+)
+def test_text_only_parents(html, expected, name):
+    assert conv(html) == expected
+
+
 def test_summary_outside_of_details_is_kept():
     assert conv("<summary>s</summary>") == "<summary>s</summary>"

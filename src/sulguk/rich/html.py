@@ -14,15 +14,18 @@ from lxml.etree import Element
 from sulguk.data import LANG_CLASS_PREFIX
 from sulguk.wrapper import parse_html
 from .converter import RichConverter
-from .dom import children
+from .dom import children, pre_text
 from .tags import (
     AUTHOR_PARENTS,
     CONTAINER_TAGS,
     DROPPED_TAGS,
+    EMPTY_BLOCK_TAGS,
     HTML_BLOCK_TAGS,
     HTML_TRANSPARENT_TAGS,
     PLAIN_TAGS,
+    QUOTE_MARK,
     RENAMED_TAGS,
+    RULE,
     TAG_ATTRS,
     VISIBLE_EMPTY_TAGS,
     VOID_TAGS,
@@ -115,6 +118,8 @@ class HtmlRenderer(RichConverter):
             return
         if tag in HTML_TRANSPARENT_TAGS:
             self._children(elem, pre)
+        elif self._is_empty_block(elem):
+            return
         elif tag in CONTAINER_TAGS:
             self._visit_container(elem, pre)
         elif tag == "span":
@@ -133,10 +138,24 @@ class HtmlRenderer(RichConverter):
             self._out.append(escape(self.progress_text(elem), quote=False))
             self._at_boundary = False
             self._ends_with_space = False
+        elif tag == "hr" and self.inside_quote(elem):
+            # Telegram does not draw a divider inside of a quote
+            self._wrap_rule()
+        elif tag == "footer":
+            if not self.has_divider_before(elem):
+                # a footer is always preceded by a divider
+                self._block_divider(elem)
+            self._visit_passed(tag, elem, pre)
+        elif tag == "pre" and self.inside_text_only(elem):
+            self._visit_flat_pre(elem)
         elif tag == "pre":
             self._visit_pre(elem)
         elif tag in ("ul", "ol") and self.flat_list_depth(elem) is not None:
             self._visit_flat_list(elem, pre)
+        elif tag == "table" and self.inside_text_only(elem):
+            self._visit_flat_table(elem, pre)
+        elif tag == "blockquote" and self.inside_text_only(elem):
+            self._visit_flat_quote(elem, pre)
         elif tag == "input":
             self._visit_input(elem, pre)
         elif tag == "code":
@@ -158,6 +177,22 @@ class HtmlRenderer(RichConverter):
             return False
         return not any(
             child.tag in VISIBLE_EMPTY_TAGS for child in elem.iterdescendants()
+        )
+
+    def _is_empty_block(self, elem: Element) -> bool:
+        """A block with nothing in it: Telegram refuses an empty block, the
+        ``blocks`` mode drops it, so does this one."""
+        if elem.tag not in EMPTY_BLOCK_TAGS:
+            return False
+        if not self._is_blank(elem):
+            return False
+        kids = children(elem)
+        if any(child.tag == "hr" for child in kids):
+            return False
+        return all(
+            self._is_empty_block(child)
+            for child in kids
+            if child.tag in HTML_BLOCK_TAGS
         )
 
     def _is_text_container(self, elem: Optional[Element]) -> bool:
@@ -253,6 +288,59 @@ class HtmlRenderer(RichConverter):
             self._children(li, pre)
         if self.has_content_after(elem):
             self._line_break()
+
+    def _wrap_rule(self) -> None:
+        self._open("p", {})
+        self._text(RULE, pre=True)
+        self._close("p")
+
+    def _block_divider(self, elem: Element) -> None:
+        """A divider before the element, a line of text where Telegram
+        cannot draw one."""
+        if self.inside_quote(elem):
+            self._wrap_rule()
+        else:
+            self._open("hr", {})
+
+    def _visit_flat_pre(self, elem: Element) -> None:
+        """``<pre>`` in a text-only element is its text with a ``<br>`` for
+        every line break, the same text the ``blocks`` mode makes."""
+        text = pre_text(elem)
+        if text.startswith("\n"):
+            text = text[1:]
+        if self.has_content_before(elem):
+            self._line_break()
+        if text.strip():
+            for index, line in enumerate(text.split("\n")):
+                if index:
+                    self._line_break()
+                self._text(line, pre=True)
+        if self.has_content_after(elem):
+            self._line_break()
+
+    def _visit_flat_quote(self, elem: Element, pre: bool) -> None:
+        """A quotation in a text-only element is a separate line with a
+        bar, the same text the ``blocks`` mode makes."""
+        if self.has_content_before(elem):
+            self._line_break()
+        self._text(QUOTE_MARK, pre=True)
+        self._ends_with_space = True
+        self._children(elem, pre)
+        if self.has_content_after(elem):
+            self._line_break()
+
+    def _visit_flat_table(self, elem: Element, pre: bool) -> None:
+        """A table in a text-only element is written as its cells: a space
+        between cells of a row, a line break between rows, the same text the
+        ``blocks`` mode makes."""
+        for index, row in enumerate(self.table_rows(elem)):
+            if index:
+                self._line_break()
+            cells = [c for c in children(row) if c.tag in ("td", "th")]
+            for number, cell in enumerate(cells):
+                if number:
+                    self._text(" ", pre=True)
+                self._children(cell, pre)
 
     def _line_break(self) -> None:
         self._out.append("<br>")

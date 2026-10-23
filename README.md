@@ -148,10 +148,18 @@ entities are produced. `InputRichMessage` holds exactly one of `html`,
   `<ol>` still takes a number, as in a browser. A list item with only a
   checkbox is kept. `<br>` in `<pre>` is a line break and text after an HTML
   comment is kept.
+* A `<footer>` is always preceded by a divider. If there is no `<hr>` right
+  before it, one is added, and footers in a row share the first one. Telegram
+  does not draw a divider inside of a `<blockquote>`, so there (an `<hr>`
+  too) it is a line of `──────────`.
 * A table cell holds only a text, and Telegram glues the items of a list in
   it together. So `<ul>` and `<ol>` in `<td>`/`<th>` are written as lines in
   both modes, as the old mode writes lists: `• ` or `1. ` (`start`, `reversed`,
-  `type` and `value` are kept), a nested list is indented.
+  `type` and `value` are kept), a nested list is indented. A `<blockquote>`
+  there cannot be a quotation block either, so it is a separate line that
+  starts with `▎ ` (the same goes for `<summary>`, `<caption>` and
+  `<figcaption>`). `<pre>` there is plain text with its line breaks kept,
+  also on lines of its own, without the monospace font.
 
 ```python
 from sulguk import transform_rich_blocks, transform_rich_html

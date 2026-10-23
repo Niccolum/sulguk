@@ -122,7 +122,78 @@ def table(*rows, **extra):
             table([cell()]),
             "empty list in a cell",
         ),
+        (
+            "<table><tr><td><table><tr><td>a</td></tr></table></td></tr>"
+            "</table>",
+            table([cell(text="a")]),
+            "table in a cell",
+        ),
+        (
+            "<table><tr><td>x<table><tr><td>a</td><td>b</td></tr>"
+            "<tr><td>c</td></tr></table>y</td></tr></table>",
+            table([cell(text="xa b\ncy")]),
+            "table in a cell keeps the text around",
+        ),
     ],
 )
 def test_table(html, expected, name):
+    assert conv(html) == expected
+
+
+@pytest.mark.parametrize(
+    "html, expected, name",
+    [
+        (
+            "<details><summary>s<ul><li>a</li><li>b</li></ul></summary>"
+            "<p>x</p></details>",
+            [{"type": "details", "summary": "s\n• a\n• b",
+              "blocks": [{"type": "paragraph", "text": "x"}]}],
+            "list in a summary",
+        ),
+        (
+            "<table><caption><ol><li>a</li><li>b</li></ol></caption>"
+            "<tr><td>c</td></tr></table>",
+            table([cell(text="c")], caption="1. a\n2. b"),
+            "list in a caption",
+        ),
+        (
+            '<figure><img src="https://e.com/a.png"><figcaption>'
+            "<ul><li>a</li></ul></figcaption></figure>",
+            [{"type": "photo",
+              "photo": {"type": "photo", "media": "https://e.com/a.png"},
+              "caption": {"text": "• a"}}],
+            "list in a figcaption",
+        ),
+        (
+            "<table><tr><td>до<blockquote>цитата</blockquote>после</td>"
+            "</tr></table>",
+            table([cell(text="до\n▎ цитата\nпосле")]),
+            "quote in a cell is a line of its own",
+        ),
+        (
+            "<table><tr><td><pre>строка 1\nстрока 2</pre></td></tr></table>",
+            table([cell(text="строка 1\nстрока 2")]),
+            "pre in a cell keeps its line breaks",
+        ),
+        (
+            "<table><tr><td>до<pre>a\n  b</pre>после</td></tr></table>",
+            table([cell(text="до\na\n  b\nпосле")]),
+            "pre in a cell keeps the text around",
+        ),
+        (
+            "<table><tr><td><blockquote>a<blockquote>b</blockquote>"
+            "</blockquote></td></tr></table>",
+            table([cell(text="▎ a\n▎ b")]),
+            "nested quotes in a cell",
+        ),
+        (
+            "<details><summary>s<blockquote>q</blockquote></summary>"
+            "<p>x</p></details>",
+            [{"type": "details", "summary": "s\n▎ q",
+              "blocks": [{"type": "paragraph", "text": "x"}]}],
+            "quote in a summary",
+        ),
+    ],
+)
+def test_text_only_parents(html, expected, name):
     assert conv(html) == expected

@@ -195,6 +195,157 @@ def _cases() -> list[Case]:
           '<tg-button type="switch_inline_query_chosen_chat" query="q" '
           "allow-user-chats allow-bot-chats>chosen</tg-button>"
           '<tg-button type="disabled">disabled</tg-button></tg-button-row>'),
+        # ---- nested rich text: block fields which hold rich text, not blocks
+        Case("nested", "paragraph-all-inline",
+          '<p><b>b</b> <strong>strong</strong> <i>i</i> <em>em</em> '
+          "<u>u</u> <ins>ins</ins> <s>s</s> <del>del</del> "
+          "<mark>mark</mark> <code>code</code> <kbd>kbd</kbd> "
+          "<sub>2</sub><sup>2</sup> "
+          '<tg-spoiler>spoiler</tg-spoiler> '
+          '<a href="https://example.com">url</a> '
+          '<a href="mailto:a@example.com">mailto</a> '
+          '<a href="tel:+10000000000">tel</a> '
+          '<a href="tg://user?id=CHAT_ID">mention</a> '
+          f'<tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji> '
+          '<tg-time unix="1767225600">дата</tg-time> '
+          "<tg-math>E=mc^2</tg-math> "
+          '<tg-reference name="ref1">сноска</tg-reference></p>'),
+        Case("nested", "heading-inline",
+          f"<h2>Заголовок <b>bold</b> <code>code</code> "
+          f'<tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji></h2>'),
+        Case("nested", "footer-inline",
+          '<footer>Подпись <b>bold</b> '
+          '<a href="https://example.com">url</a></footer>'),
+        Case("nested", "anchor-flow",
+          '<a name="top"></a><p>Текст с якорем '
+          '<a href="#top">наверх</a> и сноской '
+          '<a href="#ref2">к сноске</a></p>'
+          '<p><tg-reference name="ref2">Текст сноски</tg-reference></p>'),
+        Case("nested", "quote-blocks",
+          "<blockquote><p>абзац с <b>bold</b></p>"
+          "<ul><li>пункт <code>code</code></li></ul>"
+          "<pre>код</pre><cite>автор <i>ital</i></cite></blockquote>"),
+        Case("nested", "expandable-credit",
+          "<blockquote expandable>строка с <b>bold</b><br>"
+          'и <a href="https://example.com">ссылкой</a>'
+          "<cite>автор <s>strike</s></cite></blockquote>"),
+        Case("nested", "pullquote-credit",
+          "<aside><mark>pull</mark> с <code>code</code>"
+          "<cite><b>автор</b></cite></aside>"),
+        Case("nested", "details-nested",
+          "<details open><summary><b>Заголовок</b> с <code>code</code>"
+          "</summary><p>абзац</p><blockquote>цитата</blockquote>"
+          "<ol><li>пункт</li></ol></details>"),
+        Case("nested", "list-item-blocks",
+          "<ul><li><b>пункт</b> с <code>code</code>"
+          "<ul><li><tg-spoiler>вложенный</tg-spoiler></li></ul></li>"
+          "<li><blockquote>цитата в пункте</blockquote></li>"
+          "<li><pre>код в пункте</pre></li></ul>"),
+        Case("nested", "list-item-media", f"<ul><li>фото:<img src=\"{IMG}\">"
+          "</li></ul>"),
+        Case("nested", "table-caption-inline",
+          '<table><caption><b>Таблица</b> с <code>code</code></caption>'
+          "<tr><th><i>h</i></th></tr><tr><td>v</td></tr></table>"),
+        Case("nested", "table-cell-inline",
+          "<table><tr><td><b>b</b> <i>i</i> <u>u</u> <s>s</s> "
+          "<mark>mark</mark> <code>code</code> <sub>2</sub><sup>2</sup> "
+          "<tg-spoiler>spoiler</tg-spoiler> "
+          '<a href="https://example.com">url</a> '
+          '<tg-emoji emoji-id="' + EMOJI_ID + '">🙂</tg-emoji> '
+          "<tg-math>E=mc^2</tg-math></td></tr></table>"),
+        Case("nested", "media-caption-inline",
+          f"<figure><img src=\"{IMG}\"><figcaption><b>Фото</b> с "
+          f'<tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji> '
+          '<a href="https://example.com">ссылкой</a>'
+          "<cite><i>автор</i></cite></figcaption></figure>"),
+        Case("nested", "gallery-caption-inline",
+          f"<tg-slideshow><img src=\"{IMG}\"><img src=\"{IMG}\">"
+          "<figcaption><b>Слайдшоу</b> с <code>code</code>"
+          "<cite>автор</cite></figcaption></tg-slideshow>"),
+        Case("nested", "map-caption-inline",
+          '<figure><tg-map lat="55.7558" long="37.6173" zoom="10"/>'
+          "<figcaption><b>Карта</b><cite><i>автор</i></cite>"
+          "</figcaption></figure>"),
+        Case("nested", "button-text-inline",
+          "<tg-button-row>"
+          '<tg-button type="callback_data" data="cb">'
+          f'<b>bold</b> <code>code</code> '
+          f'<tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji> '
+          '<tg-time unix="1767225600">дата</tg-time></tg-button>'
+          "</tg-button-row>"),
+        Case("nested", "button-in-paragraph",
+          '<p>До <tg-button type="url" url="https://example.com">'
+          "<b>кнопка</b></tg-button> после</p>"),
+        Case("edge", "blockquote-in-blockquote",
+          "<blockquote>внешняя<blockquote>внутренняя<cite>автор</cite>"
+          "</blockquote></blockquote>"),
+        Case("edge", "blockquote-depth-15",
+          "<blockquote>" * 15 + "дно" + "</blockquote>" * 15),
+        Case("edge", "details-in-list",
+          "<ul><li><details open><summary>details</summary>"
+          "<p>текст</p></details></li></ul>"),
+        Case("edge", "details-in-blockquote",
+          "<blockquote><details><summary>details</summary>"
+          "<p>текст</p></details></blockquote>"),
+        Case("edge", "media-in-blockquote",
+          f"<blockquote><img src=\"{IMG}\"></blockquote>"),
+        Case("edge", "collage-in-blockquote",
+          f"<blockquote><tg-collage><img src=\"{IMG}\"><img src=\"{IMG}\">"
+          "</tg-collage></blockquote>"),
+        Case("edge", "heading-in-list-item",
+          "<ul><li><h3>заголовок</h3><p>текст</p></li></ul>"),
+        Case("edge", "blockquote-in-cell",
+          "<table><tr><td>до<blockquote>цитата</blockquote>после</td>"
+          "</tr></table>"),
+        Case("edge", "nested-table-in-cell",
+          "<table><tr><td><table><tr><td>внутри</td></tr></table></td>"
+          "</tr></table>"),
+        Case("edge", "pre-in-cell",
+          "<table><tr><td><pre>строка 1\nстрока 2</pre></td></tr></table>"),
+        Case("edge", "list-in-summary",
+          "<details><summary>Список:<ul><li>a</li><li>b</li></ul>"
+          "</summary><p>x</p></details>"),
+        Case("edge", "buttons-in-list-item",
+          "<ul><li><tg-button-row>"
+          '<tg-button type="callback_data" data="a">a</tg-button>'
+          "</tg-button-row></li></ul>"),
+        Case("edge", "button-in-cell",
+          '<table><tr><td><tg-button type="url" '
+          'url="https://example.com">b</tg-button></td></tr></table>'),
+        Case("edge", "anchor-in-blockquote",
+          '<blockquote><a name="quote"></a>цитата</blockquote>'
+          '<p><a href="#quote">к цитате</a></p>'),
+        Case("edge", "reference-in-cell",
+          '<table><tr><td><tg-reference name="cellref">метка'
+          "</tg-reference></td></tr></table>"
+          '<p><a href="#cellref">ссылка</a></p>'),
+        Case("edge", "table-caption-credit",
+          "<table><caption>Подпись<cite>автор</cite></caption>"
+          "<tr><td>v</td></tr></table>"),
+        Case("edge", "divider-in-list-item", "<ul><li>a<hr>b</li></ul>"),
+        Case("edge", "footer-in-list-item",
+          "<ul><li>a<footer>footer</footer></li></ul>"),
+        Case("edge", "figure-in-list-item",
+          f"<ul><li><figure><img src=\"{IMG}\"><figcaption>cap"
+          "</figcaption></figure></li></ul>"),
+        Case("edge", "empty-summary",
+          "<details><summary> </summary><p>x</p></details>"),
+        Case("edge", "empty-containers",
+          "<blockquote> </blockquote><p>a</p><ul><li> </li></ul>"),
+        Case("edge", "time-emoji-in-caption",
+          f"<figure><img src=\"{IMG}\"><figcaption>"
+          '<tg-time unix="1767225600">дата</tg-time> '
+          f'<tg-emoji emoji-id="{EMOJI_ID}">🙂</tg-emoji>'
+          "</figcaption></figure>"),
+        Case("edge", "multiple-buttons-in-paragraph",
+          '<p>a <tg-button type="callback_data" data="1">1</tg-button> '
+          '<tg-button type="callback_data" data="2">2</tg-button> b</p>'),
+        Case("edge", "all-blocks-in-blockquote",
+          "<blockquote><h3>h</h3><p>p</p><hr><footer>f</footer>"
+          "<tg-math-block>x</tg-math-block></blockquote>"),
+        # does Telegram draw a divider inside of a quote at all
+        Case("edge", "divider-in-blockquote",
+          "<blockquote><p>a</p><hr><p>b</p></blockquote>"),
         # ---- containers
         Case("containers", "containers",
           "<div>div</div><section><p>section</p></section><main>main</main>"
@@ -252,6 +403,8 @@ class Checker:
     def __init__(self, bot: Bot, chat_id: int) -> None:
         self.bot = bot
         self.chat_id = chat_id
+        # errors of the modes of the case being checked
+        self.errors: list[str] = []
 
     async def _call(self, method, **kwargs):
         """Call and wait if Telegram asks to; the pause keeps the limit."""
@@ -269,22 +422,41 @@ class Checker:
                                    rich_message=rich)
         return dump(message)
 
+    async def _send_mode(self, rich: InputRichMessage) -> list[dict]:
+        """Nothing for a mode which Telegram or sulguk has rejected."""
+        try:
+            return await self._send_rich(rich)
+        except (TelegramAPIError, ValueError) as e:
+            self.errors.append(f"error: {e}")
+            return []
+
     async def check(self, case: Case, html: str) -> tuple[str, str]:
         """Send both modes and compare the answers of Telegram.
+
+        A mode may fail while the other one is fine, so they are sent
+        separately: the answer of the fine one is compared with what the
+        failed one was meant to make, that shows where the two diverge.
 
         ``status`` is ``ok``, ``fail`` or ``empty``: a rich message without
         blocks means Telegram has dropped the content, it must not pass as
         ``ok`` even when both modes are equally empty.
         """
-        try:
-            by_html = await self._send_rich(InputRichMessage(
-                html=transform_rich_html(labeled("html", html)).html,
-            ))
-            by_blocks = await self._send_rich(InputRichMessage(
-                blocks=transform_rich_blocks(labeled("blocks", html)).blocks,
-            ))
-        except (TelegramAPIError, ValueError) as e:
-            return "fail", f"error: {e}"
+        self.errors = []
+        by_html = await self._send_mode(InputRichMessage(
+            html=transform_rich_html(labeled("html", html)).html,
+        ))
+        by_blocks = await self._send_mode(InputRichMessage(
+            blocks=transform_rich_blocks(labeled("blocks", html)).blocks,
+        ))
+        errors = self.errors
+        if errors:
+            if by_html and by_blocks:
+                return "fail", "\n".join(errors)
+            survived = json.dumps(
+                by_html or by_blocks, ensure_ascii=False, indent=2,
+            )
+            errors = [*errors, f"the other mode is parsed as:\n{survived}"]
+            return "fail", "\n".join(errors)
         if not by_html and not by_blocks:
             return "empty", "Telegram has parsed no blocks"
         if by_html == by_blocks:
