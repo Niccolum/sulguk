@@ -79,6 +79,8 @@ from .tags import (
     BLOCK_CONTAINERS,
     CONTAINER_TAGS,
     DROPPED_TAGS,
+    FLAT_BLOCKS,
+    LIST_INDENT,
     FORMAT_TAGS,
     HEADING_TAGS,
     MEDIA_KINDS,
@@ -288,6 +290,8 @@ class BlocksConverter(RichConverter):
         tag = str(elem.tag)
         if tag in DROPPED_TAGS:
             return []
+        if tag in MEDIA_KINDS and self.inside_text_only(elem):
+            return self._inline_media(elem)
         if tag in SEPARATE_BLOCKS:
             raise ValueError(
                 f"<{tag}> must be a separate block, "
@@ -308,6 +312,10 @@ class BlocksConverter(RichConverter):
             return self._inline_quote(elem)
         if tag == "pre" and self.inside_text_only(elem):
             return self._inline_pre(elem)
+        if tag == "details" and self.inside_text_only(elem):
+            return self._inline_details(elem)
+        if tag in FLAT_BLOCKS and self.inside_text_only(elem):
+            return self._inline_line(elem)
 
         handler = self._inline_handlers.get(tag)
         if handler is not None:
@@ -331,7 +339,7 @@ class BlocksConverter(RichConverter):
         marks = self.list_marks(elem)
         if not marks:
             return []
-        indent = "\xa0" * (self.flat_list_depth(elem) or 0)
+        indent = LIST_INDENT * (self.flat_list_depth(elem) or 0)
         items: Items = []
         if self.has_content_before(elem):
             items.append(Text("\n"))
@@ -344,6 +352,20 @@ class BlocksConverter(RichConverter):
             items.append(Text("\n"))
         return items
 
+    def _inline_media(self, elem: Element) -> Items:
+        """A media in a text-only element: an icon with a link to the file."""
+        in_cell = self.in_cell(elem)
+        label, href = self.flat_media(elem, nested=in_cell)
+        if href is None:
+            return [Text(label)]
+        if in_cell and self.is_button_url(href):
+            return [self._url_button(label, href)]
+        type_, extra = self._link(href)
+        return self._wrap(type_, [Text(label)], **extra)
+
+    def _url_button(self, label: str, href: str) -> ButtonText:
+        return ButtonText(Button(RichTextList([Text(label)]), UrlAction(href)))
+
     def _inline_quote(self, elem: Element) -> Items:
         """A quotation in a text-only element: Telegram cannot nest a block
         there, so it is a separate line with a bar, not glued to the text
@@ -354,6 +376,47 @@ class BlocksConverter(RichConverter):
         items.append(Text(QUOTE_MARK))
         items.extend(self._inline_children(elem))
         if self.has_content_after(elem):
+            items.append(Text("\n"))
+        return items
+
+    def _inline_details(self, elem: Element) -> Items:
+        """``<details>`` in a text-only element cannot be folded: a line
+        with the summary, and the body under it as a spoiler."""
+        summary, has_body = self.details_parts(elem)
+        items: Items = []
+        if self.has_content_before(elem):
+            items.append(Text("\n"))
+        if summary is not None:
+            items.extend(self._inline_children(summary))
+        if has_body:
+            if summary is not None:
+                items.append(Text("\n"))
+            items.extend(
+                self._wrap("spoiler", self._inline_children(elem, summary)),
+            )
+        if self.line_after(elem):
+            items.append(Text("\n"))
+        return items
+
+    def _inline_line(self, elem: Element) -> Items:
+        """A heading, a paragraph, a divider, a footer, a formula or
+        ``<details>`` in a text-only element: a line of its own, a divider is
+        a line of ``RULE``."""
+        if self.flat_blank(elem):
+            return []
+        tag = str(elem.tag)
+        body: Items
+        if tag == "hr":
+            body = [Text(RULE)]
+        elif tag == "tg-math-block":
+            body = [Text(plain_text(elem))]
+        else:
+            body = self._inline_children(elem)
+        items: Items = []
+        if self.has_content_before(elem):
+            items.append(Text("\n"))
+        items.extend(body)
+        if self.line_after(elem):
             items.append(Text("\n"))
         return items
 
@@ -398,6 +461,14 @@ class BlocksConverter(RichConverter):
         inner = self._inline_children(elem)
         anchor: Items = [Anchor(name)] if name else []
 
+        if href and self.in_cell(elem):
+            link = self.cell_link(elem)
+            if link is not None:
+                media, label, url = link
+                items = [b for m in media for b in self._inline_media(m)]
+                if label:
+                    items.append(self._url_button(label, url))
+                return [*anchor, *items]
         if not href:
             return anchor + inner
         if not inner:
@@ -614,13 +685,19 @@ class BlocksConverter(RichConverter):
 
     def _block_pre(self, elem: Element) -> List[RichBlock]:
         code = self.single_code(elem)
+        tail_code = self.code_before_text(elem)
+        if code is None:
+            code = tail_code
         lang = self.language(elem)
         if lang is None and code is not None:
             lang = self.language(code)
-        text = pre_text(elem)
+        text = pre_text(tail_code if tail_code is not None else elem)
         if text.startswith("\n"):
             text = text[1:]
-        return [PreBlock(text, lang or None)]
+        block = PreBlock(text, lang or None)
+        if tail_code is not None:
+            return [block, *self.blocks(elem, skip=tail_code)]
+        return [block]
 
     def _block_blockquote(self, elem: Element) -> List[RichBlock]:
         cite = first_child(elem, "cite")
@@ -677,9 +754,17 @@ class BlocksConverter(RichConverter):
         if ordered:
             self._number_items(elem, li_elems, items)
         # an item with only a checkbox is not empty
-        return ListBlock(
-            [item for item in items if item.blocks or item.has_checkbox],
-        )
+        kept = [item for item in items if item.blocks or item.has_checkbox]
+        if kept:
+            # an empty item stays with its mark, Telegram refuses a block
+            # without text, so there is a zero width space in it
+            for item in items:
+                if not item.blocks:
+                    item.blocks = [
+                        ParagraphBlock(RichTextList([Text(ZERO_WIDTH_SPACE)])),
+                    ]
+            return ListBlock(items)
+        return ListBlock([])
 
     def _list_item(self, li: Element) -> ListItemBlock:
         checkbox = self.leading_checkbox(li)
@@ -743,7 +828,8 @@ class BlocksConverter(RichConverter):
             ]
             for row in rows
         ]
-        return [TableBlock(cells, caption)]
+        anchors = [AnchorBlock(n) for n in self.cell_anchor_names(elem)]
+        return [*anchors, TableBlock(cells, caption)]
 
     def _cell(self, cell: Element) -> TableCell:
         # a header cell is centered unless told otherwise, as in html

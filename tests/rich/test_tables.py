@@ -109,7 +109,7 @@ def table(*rows, **extra):
         (
             "<table><tr><td><ul><li>a<ul><li>b</li></ul></li></ul></td></tr>"
             "</table>",
-            table([cell(text="• a\n\xa0• b")]),
+            table([cell(text="• a\n" + "\xa0" * 4 + "• b")]),
             "nested list in a cell",
         ),
         (
@@ -133,6 +133,45 @@ def table(*rows, **extra):
             "<tr><td>c</td></tr></table>y</td></tr></table>",
             table([cell(text="xa b\ncy")]),
             "table in a cell keeps the text around",
+        ),
+        (
+            '<table><tr><td><tg-reference name="r">метка</tg-reference>'
+            "</td></tr></table>",
+            [
+                {"type": "anchor", "name": "r"},
+                *table([cell(text={
+                    "type": "reference", "text": "метка", "name": "r",
+                })]),
+            ],
+            "reference in a cell gets an anchor before the table",
+        ),
+        (
+            '<table><tr><td><a name="x"></a>а</td>'
+            '<td><a name="y"></a><a name="x"></a>б</td></tr></table>',
+            [
+                {"type": "anchor", "name": "x"},
+                {"type": "anchor", "name": "y"},
+                *table([
+                    cell(text=[{"type": "anchor", "name": "x"}, "а"]),
+                    cell(text=[
+                        {"type": "anchor", "name": "y"},
+                        {"type": "anchor", "name": "x"},
+                        "б",
+                    ]),
+                ]),
+            ],
+            "anchors of cells, once each, in order",
+        ),
+        (
+            '<tg-reference name="r">м</tg-reference>'
+            "<table><tr><td>v</td></tr></table>",
+            [
+                {"type": "paragraph", "text": {
+                    "type": "reference", "text": "м", "name": "r",
+                }},
+                *table([cell(text="v")]),
+            ],
+            "reference outside of a table gets no anchor",
         ),
     ],
 )
@@ -192,6 +231,97 @@ def test_table(html, expected, name):
             [{"type": "details", "summary": "s\n▎ q",
               "blocks": [{"type": "paragraph", "text": "x"}]}],
             "quote in a summary",
+        ),
+        (
+            '<table><tr><td>до<img src="https://e.com/a.png" alt="лого">'
+            "после</td></tr></table>",
+            table([cell(text=[
+                "до",
+                {"type": "button", "button": {"text": "🖼️лого", "url": "https://e.com/a.png"}},
+                "после",
+            ])]),
+            "image in a cell is an icon with a link",
+        ),
+        (
+            '<table><tr><td><img src="https://e.com/a.png"></td></tr></table>',
+            table([cell(text={"type": "button", "button": {"text": "🖼️https://e.com/a.png", "url": "https://e.com/a.png"}})]),
+            "image without alt shows its address",
+        ),
+        (
+            '<table><tr><td><video src="https://e.com/a.mp4"></video></td>'
+            '<td><audio src="https://e.com/a.mp3"></audio></td>'
+            '<td><tg-document src="https://e.com/a.pdf" alt="отчёт">'
+            "</tg-document></td></tr></table>",
+            table([
+                cell(text={"type": "button", "button": {"text": "🎞️https://e.com/a.mp4", "url": "https://e.com/a.mp4"}}),
+                cell(text={"type": "button", "button": {"text": "🎵https://e.com/a.mp3", "url": "https://e.com/a.mp3"}}),
+                cell(text={"type": "button", "button": {"text": "📎отчёт", "url": "https://e.com/a.pdf"}}),
+            ]),
+            "video, audio and document in cells",
+        ),
+        (
+            '<table><tr><td><a href="https://e.com/x">'
+            '<img src="https://e.com/a.png" alt="pic"></a></td></tr></table>',
+            table([cell(text={"type": "button", "button": {"text": "🖼️pic", "url": "https://e.com/a.png"}})]),
+            "image in a link in a cell is a button to the image",
+        ),
+        (
+            '<details><summary>s <img src="https://e.com/a.png" alt="pic">'
+            "</summary><p>x</p></details>",
+            [{"type": "details",
+              "summary": ["s ", {"type": "url", "text": "🖼️pic",
+                                 "url": "https://e.com/a.png"}],
+              "blocks": [{"type": "paragraph", "text": "x"}]}],
+            "image in a summary",
+        ),
+        (
+            "<table><tr><td>до<h3>заголовок</h3>после</td>"
+            "<td>до<hr>после</td>"
+            "<td>до<tg-math-block>x^2</tg-math-block>после</td>"
+            "<td>до<footer>футер</footer>после</td></tr></table>",
+            table([
+                cell(text="до\nзаголовок\nпосле"),
+                cell(text="до\n──────────\nпосле"),
+                cell(text="до\nx^2\nпосле"),
+                cell(text="до\nфутер\nпосле"),
+            ]),
+            "heading, divider, formula and footer are lines in a cell",
+        ),
+        (
+            "<table><tr><td><p>абзац 1</p><p>абзац 2</p></td>"
+            "<td><div>d1</div><div>d2</div></td>"
+            "<td><p></p>y</td></tr></table>",
+            table([
+                cell(text="абзац 1\nабзац 2"),
+                cell(text="d1\nd2"),
+                cell(text="y"),
+            ]),
+            "paragraphs in a cell are lines, an empty one is dropped",
+        ),
+        (
+            "<table><tr><td><details><summary>заголовок</summary>"
+            "<p>скрытое</p></details></td></tr></table>",
+            table([cell(text=[
+                "заголовок\n",
+                {"type": "spoiler", "text": "скрытое"},
+            ])]),
+            "details in a cell: the summary and the body as a spoiler",
+        ),
+        (
+            "<table><tr><td>до<details><summary>з</summary>т1<p>п2</p>"
+            "</details>после</td></tr></table>",
+            table([cell(text=[
+                "до\nз\n",
+                {"type": "spoiler", "text": "т1\nп2"},
+                "\nпосле",
+            ])]),
+            "details in a cell keeps the text around",
+        ),
+        (
+            "<table><tr><td><details><summary>только</summary></details>"
+            "</td></tr></table>",
+            table([cell(text="только")]),
+            "details without a body in a cell",
         ),
     ],
 )

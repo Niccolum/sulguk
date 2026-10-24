@@ -70,6 +70,17 @@ def conv(html, **kwargs):
             "text after a comment",
         ),
         ("<pre>a\n  b</pre>", "<pre>a\n  b</pre>", "pre whitespace"),
+        ("<pre>a<br>b</pre>", "<pre>a\nb</pre>", "br in pre is a line break"),
+        (
+            "<pre><code>a<br>b</code></pre>",
+            "<pre><code>a\nb</code></pre>",
+            "br in pre code is a line break",
+        ),
+        (
+            '<pre><code class="language-go">a</code> и <b>b</b></pre>',
+            '<pre><code class="language-go">a</code></pre>и <b>b</b>',
+            "the text after code is outside of the pre",
+        ),
         (
             '<code class="language-go">a</code>',
             "<code>a</code>",
@@ -130,6 +141,21 @@ def conv(html, **kwargs):
             "<table><tr><th>h</th></tr></table>",
             "<table><tbody><tr><th>h</th></tr></tbody></table>",
             "table header",
+        ),
+        (
+            '<table><tr><td><tg-reference name="r">м</tg-reference>'
+            "</td></tr></table>",
+            '<a name="r"></a><table><tbody><tr><td>'
+            '<tg-reference name="r">м</tg-reference></td></tr></tbody>'
+            "</table>",
+            "reference in a cell gets an anchor before the table",
+        ),
+        (
+            '<table><tr><td><a name="x"></a>а</td>'
+            '<td><a name="x"></a>б</td></tr></table>',
+            '<a name="x"></a><table><tbody><tr><td><a name="x"></a>а</td>'
+            '<td><a name="x"></a>б</td></tr></tbody></table>',
+            "anchor of cells once",
         ),
         (
             '<table><tr><td align="center" x="1">v</td></tr></table>',
@@ -266,6 +292,76 @@ def test_container(html, expected, name):
             "quote in a summary",
         ),
         (
+            '<table><tr><td>до<img src="https://e.com/a.png" alt="лого">после</td></tr>'
+            "</table>",
+            "<table><tbody><tr><td>до<tg-button type=\"url\" "
+            "url=\"https://e.com/a.png\">🖼️лого</tg-button>после"
+            "</td></tr></tbody></table>",
+            "image in a cell is an icon with a link",
+        ),
+        (
+            '<table><tr><td><img src="https://e.com/a.png"></td></tr></table>',
+            "<table><tbody><tr><td><tg-button type=\"url\" "
+            "url=\"https://e.com/a.png\">🖼️https://e.com/a.png"
+            "</tg-button></td></tr></tbody></table>",
+            "image without alt shows its address",
+        ),
+        (
+            '<table><tr><td><a href="https://e.com/x">'
+            '<img src="https://e.com/a.png" alt="pic"></a></td></tr></table>',
+            "<table><tbody><tr><td><tg-button type=\"url\" "
+            "url=\"https://e.com/a.png\">🖼️pic</tg-button>"
+            "</td></tr></tbody></table>",
+            "image in a link in a cell is a button to the image",
+        ),
+        (
+            '<details><summary>s <img src="https://e.com/a.png" alt="pic">'
+            "</summary><p>x</p></details>",
+            "<details><summary>s <a href=\"https://e.com/a.png\">🖼️pic</a>"
+            "</summary><p>x</p></details>",
+            "image in a summary",
+        ),
+        (
+            "<table><tr><td>до<h3>заголовок</h3>после</td>"
+            "<td>до<hr>после</td>"
+            "<td>до<tg-math-block>x^2</tg-math-block>после</td>"
+            "<td>до<footer>футер</footer>после</td></tr></table>",
+            "<table><tbody><tr><td>до<br>заголовок<br>после</td>"
+            "<td>до<br>──────────<br>после</td>"
+            "<td>до<br>x^2<br>после</td>"
+            "<td>до<br>футер<br>после</td></tr></tbody></table>",
+            "heading, divider, formula and footer are lines in a cell",
+        ),
+        (
+            "<table><tr><td><p>абзац 1</p><p>абзац 2</p></td>"
+            "<td><div>d1</div><div>d2</div></td>"
+            "<td><p></p>y</td></tr></table>",
+            "<table><tbody><tr><td>абзац 1<br>абзац 2</td>"
+            "<td>d1<br>d2</td><td>y</td></tr></tbody></table>",
+            "paragraphs in a cell are lines, an empty one is dropped",
+        ),
+        (
+            "<table><tr><td><details><summary>заголовок</summary>"
+            "<p>скрытое</p></details></td></tr></table>",
+            "<table><tbody><tr><td>заголовок<br>"
+            "<tg-spoiler>скрытое</tg-spoiler></td></tr></tbody></table>",
+            "details in a cell: the summary and the body as a spoiler",
+        ),
+        (
+            "<table><tr><td>до<details><summary>з</summary>т1<p>п2</p>"
+            "</details>после</td></tr></table>",
+            "<table><tbody><tr><td>до<br>з<br>"
+            "<tg-spoiler>т1<br>п2</tg-spoiler><br>после</td></tr></tbody>"
+            "</table>",
+            "details in a cell keeps the text around",
+        ),
+        (
+            "<table><tr><td><details><summary>только</summary></details>"
+            "</td></tr></table>",
+            "<table><tbody><tr><td>только</td></tr></tbody></table>",
+            "details without a body in a cell",
+        ),
+        (
             "<table><tr><td><pre>строка 1\nстрока 2</pre></td></tr></table>",
             "<table><tbody><tr><td>строка 1<br>строка 2</td></tr>"
             "</tbody></table>",
@@ -273,7 +369,21 @@ def test_container(html, expected, name):
         ),
         ("<blockquote> </blockquote><p>a</p>", "<p>a</p>", "empty quote"),
         ("<ul><li> </li></ul><p>a</p>", "<p>a</p>", "list of empty items"),
-        ("<ul><li></li><li>a</li></ul>", "<ul><li>a</li></ul>", "empty item"),
+        (
+            "<ul><li></li><li>a</li></ul>",
+            "<ul><li>\u200b</li><li>a</li></ul>",
+            "empty item stays with its mark",
+        ),
+        (
+            "<ol><li></li><li>a</li><li>b</li></ol>",
+            '<ol><li>\u200b</li><li>a</li><li>b</li></ol>',
+            "empty item of an ordered list stays with its number",
+        ),
+        (
+            "<ol reversed><li>a</li><li></li><li>b</li></ol>",
+            '<ol reversed start="3"><li>a</li><li>\u200b</li><li>b</li></ol>',
+            "empty item of a reversed list stays with its number",
+        ),
         (
             "<ul><li><blockquote></blockquote></li></ul>",
             "",

@@ -60,6 +60,14 @@ MEDIA_KINDS = {
     "audio": "audio",
     "tg-document": "document",
 }
+# Telegram cannot place a media in a text-only element, there it is this icon
+# followed by a link to the file
+MEDIA_ICONS = {
+    "img": "🖼️",
+    "video": "🎞️",
+    "audio": "🎵",
+    "tg-document": "📎",
+}
 OL_TYPES = frozenset({"1", "a", "A", "i", "I"})
 TABLE_SECTIONS = frozenset({"thead", "tbody", "tfoot"})
 # A table in a text-only element is written as its cells, see the inline
@@ -72,10 +80,21 @@ TEXT_ONLY_PARENTS = frozenset(
 )
 # A quotation there is a separate line which starts with this bar
 QUOTE_MARK = "▎ "
+# A nested list in a text-only element is shifted by this for every level
+LIST_INDENT = "\xa0" * 4
 # Telegram does not draw a divider inside of a quote, so there it is this
 # line of text. A footer always needs a divider before it, and gets the
 # text one where it cannot be a block.
 RULE = "─" * 10
+# Blocks which are a line of their own in a text-only element: a heading, a
+# paragraph, a container, a divider (the line above), a footer, a formula,
+# ``<details>`` with its ``<summary>``
+FLAT_BLOCKS = (
+    HEADING_TAGS | CONTAINER_TAGS
+    | {"p", "footer", "hr", "tg-math-block", "details", "summary"}
+)
+# Everything there which starts a line of its own, see ``line_after``
+FLAT_LINES = FLAT_BLOCKS | {"blockquote", "pre", "ul", "ol"}
 
 # ---- html
 

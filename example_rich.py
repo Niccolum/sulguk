@@ -360,6 +360,182 @@ def _cases() -> list[Case]:
         Case("containers", "head-stylesheet",
           '<head><link rel="stylesheet" href="styles.css"></head>'
           "<p>виден только этот абзац, head со стилями игнорируется</p>", old=True),
+        Case("cells", "cell-blocks",
+          "<table><tr><td>до<h3>заголовок</h3>после</td>"
+          "<td>до<hr>после</td>"
+          "<td>до<tg-math-block>x^2</tg-math-block>после</td>"
+          "<td>до<footer>футер</footer>после</td></tr></table>"),
+        Case("cells", "cell-details",
+          "<table><tr><td><details><summary>заголовок</summary>"
+          "<p>скрытое</p></details></td></tr></table>"),
+        Case("cells", "cell-br",
+          "<table><tr><td>строка 1<br>строка 2<br><br>строка 4</td>"
+          "<td><p>абзац 1</p><p>абзац 2</p></td>"
+          "<td><div>div 1</div><div>div 2</div></td></tr></table>"),
+        Case("cells", "cell-empty",
+          "<table><tr><td></td><td> </td><td>x</td></tr>"
+          "<tr><th></th><th>h</th><td><br></td></tr></table>"),
+        Case("cells", "cell-inputs",
+          '<table><tr><td><input type="checkbox" checked> да</td>'
+          '<td><input type="radio"> нет</td>'
+          '<td><input value="значение"></td><td><input></td></tr></table>'),
+        Case("cells", "cell-code-spaces",
+          "<table><tr><td><code>a  b</code></td>"
+          "<td>a&nbsp;&nbsp;&nbsp;b</td><td>  обрезать  </td></tr></table>"),
+        Case("cells", "cell-nested-lists",
+          "<table><tr><td><ul><li>a<ul><li>b<ol><li>c</li></ol></li></ul>"
+          "</li><li>d</li></ul></td></tr></table>"),
+        Case("cells", "table-wide",
+          "<table><tr>"
+          + "".join(f"<th>{i}</th>" for i in range(10))
+          + "</tr><tr>"
+          + "".join(f"<td>{i}</td>" for i in range(10))
+          + "</tr></table>"),
+        Case("cells", "table-only-header",
+          "<table><thead><tr><th>a</th><th>b</th></tr></thead></table>"),
+        Case("cells", "table-uneven-rows",
+          "<table><tr><td>1</td><td>2</td><td>3</td></tr>"
+          "<tr><td>1</td></tr><tr><td>1</td><td>2</td></tr></table>"),
+        Case("cells", "table-in-list-item",
+          "<ul><li>пункт<table><tr><td>a</td><td>b</td></tr></table></li></ul>"),
+        Case("cells", "table-in-blockquote",
+          "<blockquote>до<table><tr><td>a</td><td>b</td></tr></table>"
+          "</blockquote>"),
+        Case("lists-deep", "mixed-lists",
+          "<ol><li>один<ul><li>a<ol type=\"a\"><li>x</li><li>y<ul><li>глубоко"
+          "</li></ul></li></ol></li></ul></li><li>два</li></ol>"),
+        Case("lists-deep", "ol-start-zero-negative",
+          '<ol start="0"><li>ноль</li><li>один</li></ol>'
+          '<ol start="-2"><li>минус два</li><li>минус один</li></ol>'),
+        Case("lists-deep", "ol-type-nested",
+          '<ol type="A"><li>A<ol type="i" start="4"><li>iv</li><li>v</li>'
+          "</ol></li><li>B</li></ol>"),
+        Case("lists-deep", "checkbox-variants",
+          '<ul><li><input type="checkbox" checked></li>'
+          '<li>текст <input type="checkbox"> посередине</li>'
+          '<li>текст <input type="checkbox" checked> посередине</li>'
+          '<li><input type="checkbox" checked> вложенный<ul>'
+          '<li><input type="checkbox"> внутри</li></ul></li></ul>'),
+        Case("lists-deep", "list-single-and-empty-items",
+          "<ul><li>единственный</li></ul><ol><li></li><li>после пустого</li>"
+          "</ol>"),
+        Case("quotes-deep", "aside-with-blocks",
+          "<aside><h4>заголовок</h4><ul><li>а</li></ul>"
+          "<p>абзац</p><cite>автор</cite></aside>"),
+        Case("quotes-deep", "details-closed-nested",
+          "<details><summary>1</summary><details><summary>2</summary>"
+          "<details><summary>3</summary><p>дно</p></details></details>"
+          "</details>"),
+        Case("quotes-deep", "details-with-blocks",
+          "<details open><summary>s</summary><ul><li>а</li></ul>"
+          "<table><tr><td>a</td></tr></table><pre>pre</pre></details>"),
+        Case("quotes-deep", "details-without-summary",
+          "<details open><p>только тело</p></details>"),
+        Case("pre-text", "pre-whitespace",
+          "<pre>\nпервая пустая\n\tтаб\n    отступ\n\nпустая выше</pre>"),
+        Case("pre-text", "pre-escapes",
+          "<pre>&lt;b&gt;не тег&lt;/b&gt; &amp; &quot;кавычки&quot;</pre>"),
+        Case("pre-text", "pre-br",
+          "<pre>строка 1<br>строка 2</pre>"),
+        Case("pre-text", "pre-code-inline-mix",
+          "<p>до <code>код</code> после</p><pre><code>блок</code> и текст</pre>"),
+        Case("pre-text", "pre-language-unknown",
+          '<pre class="language-nonexistent">x</pre>'
+          '<pre class="foo language-sql bar">select 1</pre>'),
+        Case("inline", "nesting-formatting",
+          "<p><b>жирный <i>курсив <u>подчёркнутый <s>зачёркнутый</s></u>"
+          "</i></b> и <code>код</code></p>"),
+        Case("inline", "link-with-formatting",
+          '<p><a href="https://example.com"><b>жирная</b> <i>ссылка</i> '
+          "<code>код</code> <tg-spoiler>спойлер</tg-spoiler></a></p>"),
+        Case("inline", "spoiler-with-link",
+          '<p><tg-spoiler>спойлер <a href="https://example.com">ссылка</a> '
+          "<b>жирный</b></tg-spoiler></p>"),
+        Case("inline", "adjacent-formatting",
+          "<p><b>a</b><i>b</i><u>c</u><s>d</s>e<code>f</code><mark>g</mark></p>"),
+        Case("inline", "whitespace",
+          "<p>  много    пробелов\n\nи\n   переносов   </p>"
+          "<p>nbsp:&nbsp;&nbsp;&nbsp;три</p><p>конец <b> внутри </b> тега</p>"),
+        Case("inline", "entities",
+          "<p>&lt;тег&gt; &amp; &quot;кавычки&quot; &copy; &euro; &#128512; "
+          "&#x1F600;</p>"),
+        Case("inline", "br-runs",
+          "<p>раз<br>два<br><br>четыре<br><br><br>семь</p>"),
+        Case("inline", "br-edges", "<p><br>начало</p><p>конец<br></p>"),
+        Case("inline", "empty-and-blank-paragraphs",
+          "<p></p><p> </p><p>&nbsp;</p><p><br></p><p>единственный</p>"),
+        Case("inline", "unicode",
+          "<p>日本語 中文 한국어 العربية עברית ไทย</p>"
+          "<p>👨‍👩‍👧‍👦 🏳️‍🌈 🇷🇺 é ñ</p>"),
+        Case("inline", "time-formats",
+          '<p><tg-time unix="1767225600" format="r">r</tg-time> '
+          '<tg-time unix="1767225600" format="w">w</tg-time> '
+          '<tg-time unix="1767225600" format="d">d</tg-time> '
+          '<tg-time unix="1767225600" format="D">D</tg-time> '
+          '<tg-time unix="1767225600" format="t">t</tg-time> '
+          '<tg-time unix="1767225600" format="T">T</tg-time> '
+          '<tg-time unix="1767225600" format="wDT">wDT</tg-time></p>'),
+        Case("inline", "references",
+          '<p>раз<tg-reference name="a">1</tg-reference>, '
+          'два<tg-reference name="b">2</tg-reference> '
+          '<tg-reference name="a">снова 1</tg-reference></p>'),
+        Case("blocks-flow", "hr-runs",
+          "<hr><p>а</p><hr><hr><p>б</p><hr>"),
+        Case("blocks-flow", "footer-runs",
+          "<p>а</p><footer>1</footer><footer>2</footer><p>б</p>"
+          "<footer><b>3</b> <a href=\"https://example.com\">ссылка</a>"
+          "</footer>"),
+        Case("blocks-flow", "text-between-blocks",
+          "текст до<ul><li>а</li></ul>текст между<table><tr><td>x</td></tr>"
+          "</table>текст после"),
+        Case("blocks-flow", "div-mixed",
+          "<div>до<p>абзац</p>после<ul><li>а</li></ul>конец</div>"),
+        Case("buttons-more", "button-row-align",
+          '<tg-button-row align="left"><tg-button type="callback_data" '
+          'data="1">left</tg-button></tg-button-row>'
+          '<tg-button-row align="right"><tg-button type="callback_data" '
+          'data="2">right</tg-button></tg-button-row>'),
+        Case("buttons-more", "buttons-8-in-row",
+          "<tg-button-row>" + "".join(
+              f'<tg-button type="callback_data" data="{i}">{i}</tg-button>'
+              for i in range(8)
+          ) + "</tg-button-row>"),
+        Case("buttons-more", "button-long-text",
+          '<tg-button-row><tg-button type="callback_data" data="x">'
+          "очень длинный текст кнопки который не помещается в одну строку"
+          "</tg-button></tg-button-row>"),
+        Case("media-more", "video-spoiler",
+          f'<video src="{VIDEO}" tg-spoiler></video>'),
+        Case("media-more", "figure-video",
+          f'<figure><video src="{VIDEO}"></video><figcaption>видео'
+          "</figcaption></figure>"),
+        Case("media-more", "collage-mixed",
+          f'<tg-collage><img src="{IMG}"><video src="{VIDEO}"></video>'
+          f'<img src="{IMG}"></tg-collage>'),
+        Case("media-more", "media-between-text",
+          f'<p>до</p><img src="{IMG}"><p>между</p><img src="{IMG}"><p>после</p>'),
+        Case("media-more", "media-in-details",
+          f'<details open><summary>s</summary><img src="{IMG}"></details>'),
+        Case("media-more", "map-without-zoom", '<tg-map lat="10" long="20"/>'),
+        Case("flat-media", "img-in-cell",
+          f'<table><tr><td>до<img src="{IMG}" alt="лого">после</td></tr>'
+          "</table>"),
+        Case("flat-media", "img-in-cell-no-alt",
+          f'<table><tr><td><img src="{IMG}"></td></tr></table>'),
+        Case("flat-media", "video-audio-doc-in-cell",
+          f'<table><tr><td><video src="{VIDEO}"></video></td>'
+          f'<td><audio src="{AUDIO}"></audio></td>'
+          f'<td><tg-document src="{DOCUMENT}" alt="отчёт"></tg-document>'
+          "</td></tr></table>"),
+        Case("flat-media", "img-in-summary",
+          f'<details open><summary>заголовок <img src="{IMG}" alt="pic">'
+          "</summary><p>текст</p></details>"),
+        Case("flat-media", "img-in-link-in-cell",
+          f'<table><tr><td><a href="https://example.com">'
+          f'<img src="{IMG}" alt="pic"></a></td></tr></table>'),
+        Case("flat-media", "plain-link-in-cell",
+          '<table><tr><td>текст <a href="https://example.com">ссылка'
+          '</a> ещё</td></tr></table>'),
     ]
 
 

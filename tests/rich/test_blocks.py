@@ -112,8 +112,11 @@ def one_button(html):
         ),
         (
             "<pre><code>a<br>b</code> <b>c</b></pre>",
-            [{"type": "pre", "text": "a\nb c"}],
-            "pre br in nested tags",
+            [
+                {"type": "pre", "text": "a\nb"},
+                {"type": "paragraph", "text": {"type": "bold", "text": "c"}},
+            ],
+            "pre br in nested tags, the text after code is outside of it",
         ),
         (
             "<blockquote>q<cite>A</cite></blockquote>",
@@ -347,13 +350,32 @@ def item(*blocks, **extra):
             [
                 {
                     "type": "list",
-                    "items": [item(has_checkbox=True, is_checked=True)],
+                    "items": [
+                        item(
+                            {"type": "paragraph", "text": "​"},
+                            has_checkbox=True,
+                            is_checked=True,
+                        ),
+                    ],
                 }
             ],
             "checkbox only item",
         ),
         ("<ul></ul>", [], "empty ul"),
         ("<ol><li></li></ol>", [], "empty ol item"),
+        (
+            "<ol><li></li><li>a</li></ol>",
+            [{
+                "type": "list",
+                "items": [
+                    item({"type": "paragraph", "text": "​"},
+                         value=1, type="1"),
+                    item({"type": "paragraph", "text": "a"},
+                         value=2, type="1"),
+                ],
+            }],
+            "empty item stays with its number",
+        ),
     ],
 )
 def test_lists(html, expected, name):

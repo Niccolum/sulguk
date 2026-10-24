@@ -159,7 +159,14 @@ entities are produced. `InputRichMessage` holds exactly one of `html`,
   there cannot be a quotation block either, so it is a separate line that
   starts with `▎ ` (the same goes for `<summary>`, `<caption>` and
   `<figcaption>`). `<pre>` there is plain text with its line breaks kept,
-  also on lines of its own, without the monospace font.
+  also on lines of its own, without the monospace font. A media there
+  (`<img>`, `<video>`, `<audio>`, `<tg-document>`) cannot be a block, so it is
+  an icon (🖼️ 🎞️ 🎵 📎) followed by `alt` or the address of the file, as a link to
+  the file. Inside of a link it takes the link text and keeps that link.
+  A heading, `<p>`, `<div>`, `<hr>` (a line of `──────────`), `<footer>`,
+  `<tg-math-block>` there are lines of their own too, without the formatting
+  of a block. `<details>` cannot be folded there: its `<summary>` is a line,
+  the rest is under it as a spoiler.
 
 ```python
 from sulguk import transform_rich_blocks, transform_rich_html

@@ -14,14 +14,17 @@ from lxml.etree import Element
 from sulguk.data import LANG_CLASS_PREFIX
 from sulguk.wrapper import parse_html
 from .converter import RichConverter
-from .dom import children, pre_text
+from .dom import children, plain_text, pre_text
 from .tags import (
     AUTHOR_PARENTS,
     CONTAINER_TAGS,
     DROPPED_TAGS,
     EMPTY_BLOCK_TAGS,
+    FLAT_BLOCKS,
+    LIST_INDENT,
     HTML_BLOCK_TAGS,
     HTML_TRANSPARENT_TAGS,
+    MEDIA_ICONS,
     PLAIN_TAGS,
     QUOTE_MARK,
     RENAMED_TAGS,
@@ -119,11 +122,23 @@ class HtmlRenderer(RichConverter):
         if tag in HTML_TRANSPARENT_TAGS:
             self._children(elem, pre)
         elif self._is_empty_block(elem):
+            if tag == "li" and self._has_filled_sibling(elem):
+                # an empty item of a list keeps its mark, Telegram refuses
+                # an item without text, so there is a zero width space
+                self._out.append(f"<li>{ZERO_WIDTH_SPACE}</li>")
+                self._at_boundary = True
             return
+        elif tag == "details" and self.inside_text_only(elem):
+            self._visit_flat_details(elem, pre)
+        elif tag in FLAT_BLOCKS and self.inside_text_only(elem):
+            self._visit_flat_line(elem, pre)
         elif tag in CONTAINER_TAGS:
             self._visit_container(elem, pre)
         elif tag == "span":
             self._visit_span(elem, pre)
+        elif tag == "br" and pre:
+            # Telegram ignores <br> in <pre>, there it is a line break
+            self._text("\n", pre=True)
         elif tag == "wbr":
             self._out.append(ZERO_WIDTH_SPACE)
             self._ends_with_space = False
@@ -146,6 +161,15 @@ class HtmlRenderer(RichConverter):
                 # a footer is always preceded by a divider
                 self._block_divider(elem)
             self._visit_passed(tag, elem, pre)
+        elif (
+            tag == "a"
+            and elem.get("href")
+            and self.in_cell(elem)
+            and self._visit_cell_link(elem)
+        ):
+            pass
+        elif tag in MEDIA_ICONS and self.inside_text_only(elem):
+            self._visit_flat_media(elem)
         elif tag == "pre" and self.inside_text_only(elem):
             self._visit_flat_pre(elem)
         elif tag == "pre":
@@ -154,6 +178,11 @@ class HtmlRenderer(RichConverter):
             self._visit_flat_list(elem, pre)
         elif tag == "table" and self.inside_text_only(elem):
             self._visit_flat_table(elem, pre)
+        elif tag == "table":
+            for name in self.cell_anchor_names(elem):
+                self._open("a", {"name": name})
+                self._out.append("</a>")
+            self._visit_passed(tag, elem, pre)
         elif tag == "blockquote" and self.inside_text_only(elem):
             self._visit_flat_quote(elem, pre)
         elif tag == "input":
@@ -170,6 +199,15 @@ class HtmlRenderer(RichConverter):
             self._visit_passed(tag, elem, pre)
         else:
             raise ValueError(f"Unsupported tag: {tag}")
+
+    def _has_filled_sibling(self, li: Element) -> bool:
+        """The list of the item has an item with something in it, a list
+        of empty items is dropped as a whole."""
+        parent = li.getparent()
+        return parent is not None and any(
+            item.tag == "li" and not self._is_empty_block(item)
+            for item in children(parent)
+        )
 
     def _is_blank(self, elem: Element) -> bool:
         """Nothing is shown in the element: no text and no inline media."""
@@ -257,6 +295,19 @@ class HtmlRenderer(RichConverter):
     def _visit_pre(self, elem: Element) -> None:
         self._out.append("<pre>")
         code = self.single_code(elem)
+        tail_code = self.code_before_text(elem)
+        if tail_code is not None:
+            self._visit_code(
+                tail_code, "pre", pre=True, lang=self.language(elem),
+            )
+            self._out.append("</pre>")
+            self._at_boundary = True
+            self._ends_with_space = False
+            self._text(tail_code.tail, pre=False)
+            for child in children(elem)[1:]:
+                self._visit(child, parent_tag="pre", pre=False)
+                self._text(child.tail, pre=False)
+            return
         if code is not None:
             self._visit_code(code, "pre", pre=True, lang=self.language(elem))
         else:
@@ -276,7 +327,7 @@ class HtmlRenderer(RichConverter):
         marks = self.list_marks(elem)
         if not marks:
             return
-        indent = "\xa0" * (self.flat_list_depth(elem) or 0)
+        indent = LIST_INDENT * (self.flat_list_depth(elem) or 0)
         if self.has_content_before(elem):
             self._line_break()
         for index, (li, mark) in enumerate(marks):
@@ -301,6 +352,76 @@ class HtmlRenderer(RichConverter):
             self._wrap_rule()
         else:
             self._open("hr", {})
+
+    def _visit_flat_details(self, elem: Element, pre: bool) -> None:
+        """``<details>`` in a text-only element cannot be folded: a line
+        with the summary, and the body under it as a spoiler, the same text
+        the ``blocks`` mode makes."""
+        summary, has_body = self.details_parts(elem)
+        if self.has_content_before(elem):
+            self._line_break()
+        if summary is not None:
+            self._children(summary, pre)
+        if has_body:
+            if summary is not None:
+                self._line_break()
+            self._open("tg-spoiler", {})
+            self._text(elem.text, pre)
+            for child in children(elem):
+                if child is not summary:
+                    self._visit(child, parent_tag="details", pre=pre)
+                self._text(child.tail, pre)
+            self._close("tg-spoiler")
+        if self.line_after(elem):
+            self._line_break()
+
+    def _visit_flat_line(self, elem: Element, pre: bool) -> None:
+        """A heading, a paragraph, a divider, a footer, a formula or
+        ``<details>`` in a text-only element is a line of its own, the same
+        text the ``blocks`` mode makes."""
+        if self.flat_blank(elem):
+            return
+        if self.has_content_before(elem):
+            self._line_break()
+        if elem.tag == "hr":
+            self._text(RULE, pre=True)
+        elif elem.tag == "tg-math-block":
+            self._text(plain_text(elem), pre=True)
+        else:
+            self._children(elem, pre)
+        if self.line_after(elem):
+            self._line_break()
+
+    def _visit_flat_media(self, elem: Element) -> None:
+        """A media in a text-only element is an icon with a link to the
+        file, the same text the ``blocks`` mode makes."""
+        in_cell = self.in_cell(elem)
+        label, href = self.flat_media(elem, nested=in_cell)
+        if href is None:
+            self._text(label, pre=True)
+            return
+        if in_cell and self.is_button_url(href):
+            self._url_button(label, href)
+            return
+        self._open("a", {"href": href})
+        self._text(label, pre=True)
+        self._close("a")
+
+    def _url_button(self, label: str, href: str) -> None:
+        self._open("tg-button", {"type": "url", "url": href})
+        self._text(label, pre=True)
+        self._close("tg-button")
+
+    def _visit_cell_link(self, elem: Element) -> bool:
+        link = self.cell_link(elem)
+        if link is None:
+            return False
+        media, label, href = link
+        for m in media:
+            self._visit_flat_media(m)
+        if label:
+            self._url_button(label, href)
+        return True
 
     def _visit_flat_pre(self, elem: Element) -> None:
         """``<pre>`` in a text-only element is its text with a ``<br>`` for
@@ -358,6 +479,11 @@ class HtmlRenderer(RichConverter):
             and self.flat_list_depth(parent.getparent()) is None
         ):
             self._visit_passed("input", elem, pre)
+            if len(children(parent)) == 1 and not "".join(
+                parent.itertext(),
+            ).strip(HTML_SPACE_CHARS):
+                # Telegram refuses an item without text
+                self._out.append(ZERO_WIDTH_SPACE)
         elif elem.get("type") in BUTTON_LIKE_INPUT_TYPES:
             label, attrs = self.input_button(elem)
             self._open("tg-button", attrs)
